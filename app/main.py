@@ -4,6 +4,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 import streamlit as st
+import streamlit.components.v1 as components
 import pandas as pd
 
 from core.repositories import Repo
@@ -151,55 +152,6 @@ st.markdown("""
     background:#0d765f;
     border-radius:999px;
 }
-.reco-table {
-    width:100%;
-    border-collapse:collapse;
-    overflow:hidden;
-    font-size:14px;
-}
-.reco-table th {
-    background:#1f5b6b;
-    color:white;
-    padding:10px 13px;
-    text-align:left;
-}
-.reco-table td {
-    padding:10px 13px;
-    border-bottom:1px solid #eeeae2;
-}
-.reco-table tr:nth-child(even) {
-    background:#f6f3ed;
-}
-.badge {
-    display:inline-block;
-    border-radius:999px;
-    padding:4px 24px;
-    font-size:12px;
-}
-.badge-neutral {
-    background:#ebe8df;
-    color:#6d665d;
-}
-.badge-ok {
-    background:#d9f1e9;
-    color:#0e6d5e;
-}
-.badge-no {
-    background:#f8e3db;
-    color:#924126;
-}
-.positive {
-    color:#08765f;
-    font-weight:800;
-}
-.negative {
-    color:#a33d2c;
-    font-weight:800;
-}
-.muted {
-    color:#99948b;
-    font-weight:700;
-}
 .footer-note {
     color:#9d978d;
     font-size:11px;
@@ -210,18 +162,6 @@ st.markdown("""
     grid-template-columns: 1.15fr .95fr;
     gap:38px;
     margin-top:26px;
-}
-.input-like {
-    border:1px solid #d6d0c6;
-    border-radius:9px;
-    padding:12px 14px;
-    color:#aaa;
-    background:#fff;
-    font-size:14px;
-}
-.stSelectbox label, .stTextInput label, .stRadio label, .stSlider label {
-    color:#6f6a62 !important;
-    font-size:13px !important;
 }
 .validation-card {
     background:#f5f2ec;
@@ -266,11 +206,6 @@ st.markdown("""
     padding:22px;
     background:#fff;
 }
-.back-link {
-    color:#1f5b6b;
-    font-size:13px;
-    margin-bottom:22px;
-}
 button[kind="primary"] {
     background:#1f5b6b !important;
     border-radius:8px !important;
@@ -300,9 +235,14 @@ def money(value):
         value = float(value or 0)
     except Exception:
         value = 0
-    if abs(value) >= 1_000_000:
-        return f"${value / 1_000_000:,.1f}M"
-    return f"${value:,.0f}"
+
+    sign = "-" if value < 0 else ""
+    value = abs(value)
+
+    if value >= 1_000_000:
+        return f"{sign}${value / 1_000_000:,.1f}M"
+
+    return f"{sign}${value:,.0f}"
 
 
 def render_browser_header(path="simulador-convenio.aprossoyte.local"):
@@ -354,10 +294,6 @@ else:
         fact_actual = 0
 
 
-# =========================
-# PANEL FINANCIERO
-# =========================
-
 if view == "panel":
     st.markdown('<div class="app-window">', unsafe_allow_html=True)
     render_browser_header()
@@ -391,16 +327,29 @@ if view == "panel":
 
     if not hist.empty:
         if "facturacion_actual_anual" in hist.columns:
-            fact_actual_hist = pd.to_numeric(hist["facturacion_actual_anual"], errors="coerce").fillna(0)
-            fact_proy_hist = pd.to_numeric(hist["facturacion_proyectada_anual"], errors="coerce").fillna(0)
+            fact_actual_hist = pd.to_numeric(
+                hist["facturacion_actual_anual"], errors="coerce"
+            ).fillna(0)
+            fact_proy_hist = pd.to_numeric(
+                hist["facturacion_proyectada_anual"], errors="coerce"
+            ).fillna(0)
+
             if fact_actual_hist.sum() > 0:
                 fact_actual = fact_actual_hist.sum()
                 fact_proyectada = fact_proy_hist.sum()
                 impacto = fact_actual - fact_proyectada
 
     troq_eval = len(hist) if not hist.empty else 0
-    altas = len(hist[hist["tipo_caso"] == "A"]) if not hist.empty and "tipo_caso" in hist.columns else 0
-    bajas = len(hist[hist["tipo_caso"] == "B"]) if not hist.empty and "tipo_caso" in hist.columns else 0
+    altas = (
+        len(hist[hist["tipo_caso"] == "A"])
+        if not hist.empty and "tipo_caso" in hist.columns
+        else 0
+    )
+    bajas = (
+        len(hist[hist["tipo_caso"] == "B"])
+        if not hist.empty and "tipo_caso" in hist.columns
+        else 0
+    )
 
     st.markdown(
         f"""
@@ -436,26 +385,35 @@ if view == "panel":
         <div class="section-title">Facturación anual: actual vs. proyectada</div>
         <div class="bar-row">
             <div>Actual</div>
-            <div class="bar-bg"><div class="bar-fill" style="width:{actual_pct}%; background:#d8d5cc;"></div></div>
+            <div class="bar-bg">
+                <div class="bar-fill" style="width:{actual_pct}%; background:#d8d5cc;"></div>
+            </div>
             <strong>{money(fact_actual)}</strong>
         </div>
         <div class="bar-row">
             <div>Proyectada</div>
-            <div class="bar-bg"><div class="bar-fill" style="width:{proy_pct}%;"></div></div>
+            <div class="bar-bg">
+                <div class="bar-fill" style="width:{proy_pct}%;"></div>
+            </div>
             <strong>{money(fact_proyectada)}</strong>
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    st.markdown('<div class="section-title">Recomendaciones recientes</div>', unsafe_allow_html=True)
+    st.markdown(
+        '<div class="section-title">Recomendaciones recientes</div>',
+        unsafe_allow_html=True,
+    )
 
     rows_html = ""
 
     if not hist.empty:
         data = hist.copy()
+
         if "fecha_corrida" in data.columns:
             data = data.sort_values("fecha_corrida", ascending=False)
+
         data = data.head(8)
 
         for _, r in data.iterrows():
@@ -467,18 +425,19 @@ if view == "panel":
 
             monodroga = ""
             banda = "-"
+
             if not troqueles.empty and "codigo_troquel" in troqueles.columns:
                 tr = troqueles[troqueles["codigo_troquel"].astype(str) == str(codigo)]
+
                 if not tr.empty:
                     monodroga = tr.iloc[0].get("monodroga", "")
-                    try:
-                        banda = f"{svc.discount_for_count(1) if hasattr(svc, 'discount_for_count') else ''}"
-                    except Exception:
-                        banda = "-"
+                    pvp = tr.iloc[0].get("pvp", "")
+                    banda = "-"
 
             fa = float(r.get("facturacion_actual_anual") or 0)
             fp = float(r.get("facturacion_proyectada_anual") or 0)
             imp = fp - fa
+
             imp_class = "positive" if imp < 0 else "negative" if imp > 0 else "muted"
 
             rows_html += f"""
@@ -500,8 +459,67 @@ if view == "panel":
         </tr>
         """
 
-    st.markdown(
+    components.html(
         f"""
+        <style>
+        .reco-table {{
+            width:100%;
+            border-collapse:collapse;
+            font-family: Arial, sans-serif;
+            font-size:14px;
+        }}
+        .reco-table th {{
+            background:#1f5b6b;
+            color:white;
+            padding:10px 13px;
+            text-align:left;
+        }}
+        .reco-table td {{
+            padding:10px 13px;
+            border-bottom:1px solid #eeeae2;
+            color:#333;
+        }}
+        .reco-table tr:nth-child(even) {{
+            background:#f6f3ed;
+        }}
+        .badge {{
+            display:inline-block;
+            border-radius:999px;
+            padding:4px 24px;
+            font-size:12px;
+        }}
+        .badge-neutral {{
+            background:#ebe8df;
+            color:#6d665d;
+        }}
+        .badge-ok {{
+            background:#d9f1e9;
+            color:#0e6d5e;
+        }}
+        .badge-no {{
+            background:#f8e3db;
+            color:#924126;
+        }}
+        .positive {{
+            color:#08765f;
+            font-weight:800;
+        }}
+        .negative {{
+            color:#a33d2c;
+            font-weight:800;
+        }}
+        .muted {{
+            color:#99948b;
+            font-weight:700;
+        }}
+        .footer-note {{
+            color:#9d978d;
+            font-size:11px;
+            margin-top:16px;
+            font-family: Arial, sans-serif;
+        }}
+        </style>
+
         <table class="reco-table">
             <thead>
                 <tr>
@@ -517,9 +535,13 @@ if view == "panel":
                 {rows_html}
             </tbody>
         </table>
-        <div class="footer-note">Datos ilustrativos o calculados desde Supabase. Fuentes: ALB, Convenio APROSS OYTE, Liquidación.</div>
+
+        <div class="footer-note">
+            Datos ilustrativos o calculados desde Supabase. Fuentes: ALB, Convenio APROSS OYTE, Liquidación.
+        </div>
         """,
-        unsafe_allow_html=True,
+        height=360,
+        scrolling=False,
     )
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -530,10 +552,6 @@ if view == "panel":
 
     st.markdown("</div></div>", unsafe_allow_html=True)
 
-
-# =========================
-# NUEVA SIMULACIÓN
-# =========================
 
 else:
     st.markdown('<div class="app-window">', unsafe_allow_html=True)
@@ -552,8 +570,6 @@ else:
         unsafe_allow_html=True,
     )
 
-    st.markdown('<div class="form-grid">', unsafe_allow_html=True)
-
     left, right = st.columns([1.15, 0.95])
 
     with left:
@@ -561,7 +577,10 @@ else:
             codigos = troqueles["codigo_troquel"].astype(str).tolist()
             codigo = st.selectbox("Código de troquel", codigos)
         else:
-            codigo = st.text_input("Código de troquel", placeholder="Ej: TRQ-10532, o buscar por monodroga")
+            codigo = st.text_input(
+                "Código de troquel",
+                placeholder="Ej: TRQ-10532, o buscar por monodroga",
+            )
 
         tipo = st.radio(
             "Tipo de análisis",
@@ -586,6 +605,7 @@ else:
 
         if codigo and not troqueles.empty and "codigo_troquel" in troqueles.columns:
             row = troqueles[troqueles["codigo_troquel"].astype(str) == str(codigo)]
+
             if not row.empty:
                 r = row.iloc[0]
                 monodroga = r.get("monodroga", "")
@@ -594,6 +614,7 @@ else:
                 laboratorio = r.get("laboratorio", "")
                 estado = r.get("estado", "")
                 en_convenio = codigo in convenio_codes
+
                 try:
                     pvp = float(r.get("pvp", 0) or 0)
                 except Exception:
@@ -616,8 +637,6 @@ else:
             unsafe_allow_html=True,
         )
 
-    st.markdown("</div>", unsafe_allow_html=True)
-
     if ejecutar and codigo:
         try:
             if tipo == "Alta":
@@ -637,7 +656,9 @@ else:
             except Exception as e:
                 saved_msg = f"La simulación se calculó, pero no pudo guardarse: {e}"
 
-            impacto = result.facturacion_proyectada_anual - result.facturacion_actual_anual
+            impacto_resultado = (
+                result.facturacion_proyectada_anual - result.facturacion_actual_anual
+            )
 
             reco_badge = (
                 '<span class="badge badge-ok">Recomendado</span>'
@@ -662,7 +683,7 @@ else:
                         </div>
                         <div class="metric-card">
                             <div class="metric-label">Impacto neto</div>
-                            <div class="metric-value {'green-value' if impacto < 0 else ''}">{money(impacto)}</div>
+                            <div class="metric-value {'green-value' if impacto_resultado < 0 else ''}">{money(impacto_resultado)}</div>
                         </div>
                     </div>
                     <p class="footer-note">{saved_msg}</p>
