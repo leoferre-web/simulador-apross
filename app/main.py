@@ -39,6 +39,9 @@ tab_panel, tab_simular, tab_historial, tab_datos = st.tabs(['Panel financiero', 
 
 with tab_panel:
     convenio_codes = svc.active_convenio_codes()
+    if troqueles.empty or liquidaciones.empty:
+    fact_actual = 0
+else:
     fact_actual = svc._full('A','',False,'', {'monodroga':'','potencia':''}, convenio_codes, convenio_codes).facturacion_actual_anual
     c1, c2, c3, c4 = st.columns(4)
     c1.metric('Facturación actual anual', f'${fact_actual:,.0f}')
