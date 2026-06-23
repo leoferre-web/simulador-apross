@@ -5,8 +5,8 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from core.repositories import Repo
-from core.services import SimulationService
+from repositories import Repo
+from services import SimulationService
 
 st.set_page_config(page_title='Simulador APROSS OYTE', layout='wide')
 
