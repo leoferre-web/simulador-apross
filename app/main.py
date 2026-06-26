@@ -324,26 +324,35 @@ else:
 if view == "panel":
     st.markdown('<div class="app-window">', unsafe_allow_html=True)
     render_browser_header()
-
+    if "case_filter" not in st.session_state:
+        st.session_state.case_filter = "Todas"
+        
     st.markdown('<div class="inner">', unsafe_allow_html=True)
 
-    st.markdown(
-        """
-        <div class="title-row">
-            <div>
-                <div class="kicker">Simulador de convenio</div>
-                <h1 class="main-title">APROSS OYTE — Panel financiero</h1>
-            </div>
-            <div class="segment">
-                <span class="seg-btn seg-btn-active">Todas</span>
-                <span class="seg-btn">Altas</span>
-                <span class="seg-btn">Bajas</span>
-            </div>
+st.markdown(
+    """
+    <div class="title-row">
+        <div>
+            <div class="kicker">Simulador de convenio</div>
+            <h1 class="main-title">APROSS OYTE — Panel financiero</h1>
         </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+c1, c2, c3, c4 = st.columns([6, 1, 1, 1])
 
+with c2:
+    if st.button("Todas", use_container_width=True):
+        st.session_state.case_filter = "Todas"
+
+with c3:
+    if st.button("Altas", use_container_width=True):
+        st.session_state.case_filter = "Altas"
+
+with c4:
+    if st.button("Bajas", use_container_width=True):
+        st.session_state.case_filter = "Bajas"
     fact_proyectada = fact_actual
     impacto = 0
 
