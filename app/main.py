@@ -90,24 +90,6 @@ st.markdown("""
     color:#2b2b2b;
     margin:0;
 }
-.segment {
-    display:flex;
-    gap:10px;
-}
-.seg-btn {
-    border:1px solid #d9d4ca;
-    border-radius:999px;
-    padding:8px 26px;
-    font-size:13px;
-    color:#706b63;
-    background:#fff;
-}
-.seg-btn-active {
-    background:#1f5b6b;
-    color:#fff;
-    border-color:#1f5b6b;
-    font-weight:700;
-}
 .metric-grid {
     display:grid;
     grid-template-columns: repeat(4, 1fr);
@@ -285,11 +267,14 @@ repo = Repo()
 
 
 # ============================================================
-# BLOQUE 06 — Navegación de vistas
+# BLOQUE 06 — Navegación de vistas y filtros
 # ============================================================
 
 if "view" not in st.session_state:
     st.session_state.view = "panel"
+
+if "case_filter" not in st.session_state:
+    st.session_state.case_filter = "Todas"
 
 view = st.session_state.view
 
@@ -324,35 +309,36 @@ else:
 if view == "panel":
     st.markdown('<div class="app-window">', unsafe_allow_html=True)
     render_browser_header()
-    if "case_filter" not in st.session_state:
-        st.session_state.case_filter = "Todas"
-        
     st.markdown('<div class="inner">', unsafe_allow_html=True)
 
-st.markdown(
-    """
-    <div class="title-row">
-        <div>
-            <div class="kicker">Simulador de convenio</div>
-            <h1 class="main-title">APROSS OYTE — Panel financiero</h1>
+    st.markdown(
+        """
+        <div class="title-row">
+            <div>
+                <div class="kicker">Simulador de convenio</div>
+                <h1 class="main-title">APROSS OYTE — Panel financiero</h1>
+            </div>
         </div>
-    </div>
-    """,
-    unsafe_allow_html=True,
-)
-c1, c2, c3, c4 = st.columns([6, 1, 1, 1])
+        """,
+        unsafe_allow_html=True,
+    )
 
-with c2:
-    if st.button("Todas", use_container_width=True):
-        st.session_state.case_filter = "Todas"
+    f1, f2, f3, f4 = st.columns([6, 1, 1, 1])
 
-with c3:
-    if st.button("Altas", use_container_width=True):
-        st.session_state.case_filter = "Altas"
+    with f2:
+        if st.button("Todas", use_container_width=True):
+            st.session_state.case_filter = "Todas"
 
-with c4:
-    if st.button("Bajas", use_container_width=True):
-        st.session_state.case_filter = "Bajas"
+    with f3:
+        if st.button("Altas", use_container_width=True):
+            st.session_state.case_filter = "Altas"
+
+    with f4:
+        if st.button("Bajas", use_container_width=True):
+            st.session_state.case_filter = "Bajas"
+
+    st.caption(f"Filtro activo: {st.session_state.case_filter}")
+
     fact_proyectada = fact_actual
     impacto = 0
 
@@ -361,12 +347,21 @@ with c4:
     except Exception:
         hist = pd.DataFrame()
 
-    if not hist.empty and "facturacion_actual_anual" in hist.columns:
+    hist_filtrado = hist.copy()
+
+    if not hist_filtrado.empty and "tipo_caso" in hist_filtrado.columns:
+        if st.session_state.case_filter == "Altas":
+            hist_filtrado = hist_filtrado[hist_filtrado["tipo_caso"] == "A"]
+
+        elif st.session_state.case_filter == "Bajas":
+            hist_filtrado = hist_filtrado[hist_filtrado["tipo_caso"] == "B"]
+
+    if not hist_filtrado.empty and "facturacion_actual_anual" in hist_filtrado.columns:
         fact_actual_hist = pd.to_numeric(
-            hist["facturacion_actual_anual"], errors="coerce"
+            hist_filtrado["facturacion_actual_anual"], errors="coerce"
         ).fillna(0)
         fact_proy_hist = pd.to_numeric(
-            hist["facturacion_proyectada_anual"], errors="coerce"
+            hist_filtrado["facturacion_proyectada_anual"], errors="coerce"
         ).fillna(0)
 
         if fact_actual_hist.sum() > 0:
@@ -374,15 +369,15 @@ with c4:
             fact_proyectada = fact_proy_hist.sum()
             impacto = fact_actual - fact_proyectada
 
-    troq_eval = len(hist) if not hist.empty else 0
+    troq_eval = len(hist_filtrado) if not hist_filtrado.empty else 0
     altas = (
-        len(hist[hist["tipo_caso"] == "A"])
-        if not hist.empty and "tipo_caso" in hist.columns
+        len(hist_filtrado[hist_filtrado["tipo_caso"] == "A"])
+        if not hist_filtrado.empty and "tipo_caso" in hist_filtrado.columns
         else 0
     )
     bajas = (
-        len(hist[hist["tipo_caso"] == "B"])
-        if not hist.empty and "tipo_caso" in hist.columns
+        len(hist_filtrado[hist_filtrado["tipo_caso"] == "B"])
+        if not hist_filtrado.empty and "tipo_caso" in hist_filtrado.columns
         else 0
     )
 
@@ -443,8 +438,8 @@ with c4:
 
     rows_html = ""
 
-    if not hist.empty:
-        data = hist.copy()
+    if not hist_filtrado.empty:
+        data = hist_filtrado.copy()
 
         if "fecha_corrida" in data.columns:
             data = data.sort_values("fecha_corrida", ascending=False)
@@ -463,7 +458,6 @@ with c4:
 
             if not troqueles.empty and "codigo_troquel" in troqueles.columns:
                 tr = troqueles[troqueles["codigo_troquel"].astype(str) == str(codigo)]
-
                 if not tr.empty:
                     monodroga = tr.iloc[0].get("monodroga", "")
 
@@ -487,7 +481,7 @@ with c4:
         rows_html = """
         <tr>
             <td colspan="6" style="text-align:center; color:#999; padding:20px;">
-                Todavía no hay simulaciones guardadas.
+                No hay simulaciones para el filtro seleccionado.
             </td>
         </tr>
         """
