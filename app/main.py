@@ -1,3 +1,7 @@
+# ============================================================
+# BLOQUE 01 — Imports y configuración inicial
+# ============================================================
+
 import sys
 from pathlib import Path
 
@@ -11,8 +15,16 @@ from core.repositories import Repo
 from core.services import SimulationService
 
 
+# ============================================================
+# BLOQUE 02 — Configuración de página
+# ============================================================
+
 st.set_page_config(page_title="Simulador APROSS OYTE", layout="wide")
 
+
+# ============================================================
+# BLOQUE 03 — Estilos CSS generales
+# ============================================================
 
 st.markdown("""
 <style>
@@ -157,12 +169,6 @@ st.markdown("""
     font-size:11px;
     margin-top:16px;
 }
-.form-grid {
-    display:grid;
-    grid-template-columns: 1.15fr .95fr;
-    gap:38px;
-    margin-top:26px;
-}
 .validation-card {
     background:#f5f2ec;
     border-radius:12px;
@@ -212,13 +218,16 @@ button[kind="primary"] {
 }
 @media(max-width: 850px) {
     .metric-grid { grid-template-columns: repeat(2, 1fr); }
-    .form-grid { grid-template-columns: 1fr; }
     .title-row { flex-direction:column; align-items:flex-start; }
     .url-pill { padding:5px 30px; }
 }
 </style>
 """, unsafe_allow_html=True)
 
+
+# ============================================================
+# BLOQUE 04 — Funciones auxiliares
+# ============================================================
 
 @st.cache_data(ttl=60)
 def load_data():
@@ -261,19 +270,33 @@ def render_browser_header(path="simulador-convenio.aprossoyte.local"):
     )
 
 
+# ============================================================
+# BLOQUE 05 — Carga de datos y servicios
+# ============================================================
+
 try:
     troqueles, convenio, liquidaciones = load_data()
 except Exception as e:
     st.error(f"No se pudieron cargar datos desde Supabase: {e}")
     st.stop()
 
-
 svc = SimulationService(troqueles, convenio, liquidaciones)
 repo = Repo()
 
-view = st.query_params.get("view", "panel")
-if isinstance(view, list):
-    view = view[0]
+
+# ============================================================
+# BLOQUE 06 — Navegación de vistas
+# ============================================================
+
+if "view" not in st.session_state:
+    st.session_state.view = "panel"
+
+view = st.session_state.view
+
+
+# ============================================================
+# BLOQUE 07 — Cálculo base del panel
+# ============================================================
 
 convenio_codes = svc.active_convenio_codes()
 
@@ -293,6 +316,10 @@ else:
     except Exception:
         fact_actual = 0
 
+
+# ============================================================
+# BLOQUE 08 — Vista Panel Financiero
+# ============================================================
 
 if view == "panel":
     st.markdown('<div class="app-window">', unsafe_allow_html=True)
@@ -325,19 +352,18 @@ if view == "panel":
     except Exception:
         hist = pd.DataFrame()
 
-    if not hist.empty:
-        if "facturacion_actual_anual" in hist.columns:
-            fact_actual_hist = pd.to_numeric(
-                hist["facturacion_actual_anual"], errors="coerce"
-            ).fillna(0)
-            fact_proy_hist = pd.to_numeric(
-                hist["facturacion_proyectada_anual"], errors="coerce"
-            ).fillna(0)
+    if not hist.empty and "facturacion_actual_anual" in hist.columns:
+        fact_actual_hist = pd.to_numeric(
+            hist["facturacion_actual_anual"], errors="coerce"
+        ).fillna(0)
+        fact_proy_hist = pd.to_numeric(
+            hist["facturacion_proyectada_anual"], errors="coerce"
+        ).fillna(0)
 
-            if fact_actual_hist.sum() > 0:
-                fact_actual = fact_actual_hist.sum()
-                fact_proyectada = fact_proy_hist.sum()
-                impacto = fact_actual - fact_proyectada
+        if fact_actual_hist.sum() > 0:
+            fact_actual = fact_actual_hist.sum()
+            fact_proyectada = fact_proy_hist.sum()
+            impacto = fact_actual - fact_proyectada
 
     troq_eval = len(hist) if not hist.empty else 0
     altas = (
@@ -431,8 +457,6 @@ if view == "panel":
 
                 if not tr.empty:
                     monodroga = tr.iloc[0].get("monodroga", "")
-                    pvp = tr.iloc[0].get("pvp", "")
-                    banda = "-"
 
             fa = float(r.get("facturacion_actual_anual") or 0)
             fp = float(r.get("facturacion_proyectada_anual") or 0)
@@ -547,11 +571,15 @@ if view == "panel":
     st.markdown("<br>", unsafe_allow_html=True)
 
     if st.button("Nueva simulación", type="primary"):
-        st.query_params["view"] = "simular"
+        st.session_state.view = "simular"
         st.rerun()
 
     st.markdown("</div></div>", unsafe_allow_html=True)
 
+
+# ============================================================
+# BLOQUE 09 — Vista Nueva Simulación
+# ============================================================
 
 else:
     st.markdown('<div class="app-window">', unsafe_allow_html=True)
@@ -559,7 +587,7 @@ else:
     st.markdown('<div class="inner">', unsafe_allow_html=True)
 
     if st.button("← Volver al panel"):
-        st.query_params["view"] = "panel"
+        st.session_state.view = "panel"
         st.rerun()
 
     st.markdown(
