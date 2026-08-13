@@ -3,6 +3,7 @@
 # ============================================================
 
 import sys
+import textwrap
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -13,6 +14,7 @@ import streamlit.components.v1 as components
 
 from core.repositories import Repo
 from core.services import SimulationService
+from core.rules import is_eligible
 
 
 # ============================================================
@@ -26,25 +28,36 @@ st.set_page_config(
 
 
 # ============================================================
-# BLOQUE 03 — Estilos CSS
+# BLOQUE 03 — Función segura para renderizar HTML
 # ============================================================
 
-st.markdown("""
+def html_block(html: str):
+    """
+    Elimina la indentación del HTML antes de enviarlo a
+    Streamlit. Evita que Markdown interprete el HTML como
+    bloque de código.
+    """
+    st.markdown(
+        textwrap.dedent(html),
+        unsafe_allow_html=True,
+    )
+
+
+# ============================================================
+# BLOQUE 04 — Estilos CSS
+# ============================================================
+
+html_block("""
 <style>
 
 .block-container {
-    padding-top: 2rem;
+    padding-top: 1.5rem;
     padding-bottom: 2rem;
     max-width: 1180px;
 }
 
-.app-window {
+div[data-testid="stAppViewContainer"] {
     background: #ffffff;
-    border: 1px solid #dedbd2;
-    border-radius: 18px;
-    padding: 0;
-    box-shadow: 0 8px 24px rgba(0,0,0,.08);
-    overflow: hidden;
 }
 
 .top-bar {
@@ -55,6 +68,7 @@ st.markdown("""
     align-items: center;
     justify-content: center;
     position: relative;
+    margin-bottom: 34px;
 }
 
 .dots {
@@ -70,218 +84,232 @@ st.markdown("""
     border-radius: 50%;
 }
 
-.red { background:#e86b5c; }
-.yellow { background:#e8bf4f; }
-.green { background:#52b788; }
-
-.url-pill {
-    background: #fff;
-    border: 1px solid #ddd8ce;
-    border-radius: 999px;
-    padding: 5px 90px;
-    color: #999;
-    font-size: 12px;
+.red {
+    background: #e86b5c;
 }
 
-.inner {
-    padding: 36px 44px;
+.yellow {
+    background: #e8bf4f;
+}
+
+.green {
+    background: #52b788;
+}
+
+.url-pill {
+    background: #ffffff;
+    border: 1px solid #ddd8ce;
+    border-radius: 999px;
+    padding: 5px 80px;
+    color: #999;
+    font-size: 11px;
 }
 
 .kicker {
-    color:#8f8a80;
-    font-size:12px;
-    text-transform:uppercase;
-    letter-spacing:.04em;
-    margin-bottom:3px;
+    color: #8f8a80;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+    margin-bottom: 5px;
 }
 
 .main-title {
-    font-size:26px;
-    font-weight:800;
-    color:#2b2b2b;
-    margin:0;
+    font-size: 26px;
+    font-weight: 800;
+    color: #2b2b2b;
+    margin: 0 0 12px 0;
 }
 
 .metric-grid {
-    display:grid;
-    grid-template-columns:repeat(4, 1fr);
-    gap:20px;
-    margin-top:32px;
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 18px;
+    margin-top: 28px;
+    margin-bottom: 20px;
 }
 
 .metric-card {
-    background:#f5f2ec;
-    border-radius:12px;
-    padding:20px 22px;
-    min-height:92px;
+    background: #f5f2ec;
+    border-radius: 12px;
+    padding: 20px 22px;
+    min-height: 95px;
 }
 
 .metric-label {
-    color:#716c64;
-    font-size:13px;
-    margin-bottom:8px;
+    color: #716c64;
+    font-size: 12px;
+    margin-bottom: 8px;
 }
 
 .metric-value {
-    color:#2c2c2c;
-    font-size:25px;
-    font-weight:800;
+    color: #2c2c2c;
+    font-size: 24px;
+    font-weight: 800;
 }
 
 .metric-sub {
-    color:#9b958b;
-    font-size:12px;
-    margin-top:4px;
+    color: #9b958b;
+    font-size: 11px;
+    margin-top: 5px;
 }
 
 .green-value {
-    color:#08765f;
+    color: #08765f;
 }
 
 .red-value {
-    color:#a33d2c;
+    color: #a33d2c;
 }
 
 .section-title {
-    margin-top:22px;
-    margin-bottom:10px;
-    color:#6f6a62;
-    font-size:15px;
+    margin-top: 22px;
+    margin-bottom: 10px;
+    color: #6f6a62;
+    font-size: 14px;
 }
 
 .bar-row {
-    display:grid;
-    grid-template-columns:90px 1fr 110px;
-    align-items:center;
-    gap:18px;
-    margin:12px 0;
-    font-size:13px;
-    color:#777169;
+    display: grid;
+    grid-template-columns: 90px 1fr 120px;
+    align-items: center;
+    gap: 18px;
+    margin: 12px 0;
+    font-size: 12px;
+    color: #777169;
 }
 
 .bar-bg {
-    height:18px;
-    background:#dfddd5;
-    border-radius:999px;
-    overflow:hidden;
+    height: 17px;
+    background: #dfddd5;
+    border-radius: 999px;
+    overflow: hidden;
 }
 
 .bar-fill {
-    height:18px;
-    background:#0d765f;
-    border-radius:999px;
+    height: 17px;
+    background: #0d765f;
+    border-radius: 999px;
 }
 
 .validation-card {
-    background:#f5f2ec;
-    border-radius:12px;
-    padding:22px;
+    background: #f5f2ec;
+    border-radius: 12px;
+    padding: 22px;
 }
 
 .validation-title {
-    font-weight:800;
-    color:#333;
-    margin-bottom:14px;
+    font-weight: 800;
+    color: #333333;
+    margin-bottom: 14px;
+    font-size: 14px;
 }
 
 .validation-row {
-    display:flex;
-    justify-content:space-between;
-    gap:20px;
-    padding:7px 0;
-    font-size:13px;
-    border-bottom:1px solid #e5e0d6;
-    color:#5f5a53;
+    display: flex;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 7px 0;
+    font-size: 12px;
+    border-bottom: 1px solid #e5e0d6;
+    color: #5f5a53;
 }
 
 .validation-row:last-child {
-    border-bottom:none;
+    border-bottom: none;
 }
 
 .validation-row strong {
-    color:#2d2d2d;
-    text-align:right;
+    color: #2d2d2d;
+    text-align: right;
 }
 
 .check-ok {
-    color:#08765f;
-    font-weight:800;
+    color: #08765f !important;
+    font-weight: 800;
 }
 
 .check-no {
-    color:#a33d2c;
-    font-weight:800;
+    color: #a33d2c !important;
+    font-weight: 800;
 }
 
 .result-placeholder {
-    margin-top:40px;
-    border:2px dashed #ddd6c9;
-    border-radius:14px;
-    min-height:120px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    text-align:center;
-    color:#aaa39a;
-    font-style:italic;
+    margin-top: 40px;
+    border: 2px dashed #ddd6c9;
+    border-radius: 14px;
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    color: #aaa39a;
+    font-size: 13px;
+    font-style: italic;
 }
 
 .result-box {
-    margin-top:32px;
-    border:1px solid #e5dfd3;
-    border-radius:14px;
-    padding:22px;
-    background:#fff;
+    margin-top: 30px;
+    border: 1px solid #e5dfd3;
+    border-radius: 14px;
+    padding: 22px;
+    background: #ffffff;
 }
 
 .result-ok {
-    background:#d9f1e9;
-    color:#0e6d5e;
-    padding:7px 14px;
-    border-radius:999px;
-    display:inline-block;
-    font-weight:700;
-    font-size:13px;
+    background: #d9f1e9;
+    color: #0e6d5e;
+    padding: 7px 14px;
+    border-radius: 999px;
+    display: inline-block;
+    font-weight: 700;
+    font-size: 12px;
 }
 
 .result-no {
-    background:#f8e3db;
-    color:#924126;
-    padding:7px 14px;
-    border-radius:999px;
-    display:inline-block;
-    font-weight:700;
-    font-size:13px;
+    background: #f8e3db;
+    color: #924126;
+    padding: 7px 14px;
+    border-radius: 999px;
+    display: inline-block;
+    font-weight: 700;
+    font-size: 12px;
 }
 
 .footer-note {
-    color:#9d978d;
-    font-size:11px;
-    margin-top:16px;
+    color: #9d978d;
+    font-size: 11px;
+    margin-top: 16px;
 }
 
 button[kind="primary"] {
-    background:#1f5b6b !important;
-    border-radius:8px !important;
+    background: #1f5b6b !important;
+    border-radius: 8px !important;
+    border: none !important;
 }
 
-@media(max-width:850px) {
+div[data-testid="stMetric"] {
+    background: #f5f2ec;
+    border-radius: 12px;
+    padding: 14px;
+}
+
+@media(max-width: 850px) {
 
     .metric-grid {
-        grid-template-columns:repeat(2,1fr);
+        grid-template-columns: repeat(2, 1fr);
     }
 
     .url-pill {
-        padding:5px 30px;
+        padding: 5px 30px;
     }
 }
 
 </style>
-""", unsafe_allow_html=True)
+""")
 
 
 # ============================================================
-# BLOQUE 04 — Funciones auxiliares
+# BLOQUE 05 — Funciones auxiliares
 # ============================================================
 
 def money(value):
@@ -297,6 +325,9 @@ def money(value):
     if value >= 1_000_000:
         return f"{sign}${value / 1_000_000:,.1f}M"
 
+    if value >= 1_000:
+        return f"{sign}${value:,.0f}"
+
     return f"{sign}${value:,.2f}"
 
 
@@ -309,11 +340,8 @@ def percentage(value):
 
 
 def normalize_code(value):
-    """
-    Evita códigos visualmente como 123456.0.
-    """
 
-    if pd.isna(value):
+    if value is None or pd.isna(value):
         return ""
 
     try:
@@ -323,10 +351,10 @@ def normalize_code(value):
 
 
 def render_browser_header(
-    path="simulador-convenio.aprossoyte.local"
+    path="simulador-convenio.aprossoyte.local",
 ):
 
-    st.markdown(
+    html_block(
         f"""
         <div class="top-bar">
 
@@ -341,13 +369,12 @@ def render_browser_header(
             </div>
 
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
 
 # ============================================================
-# BLOQUE 05 — Carga de datos desde Supabase
+# BLOQUE 06 — Carga de datos desde Supabase
 # ============================================================
 
 @st.cache_data(ttl=300)
@@ -398,7 +425,7 @@ except Exception as e:
 
 
 # ============================================================
-# BLOQUE 06 — Servicios
+# BLOQUE 07 — Servicios
 # ============================================================
 
 repo = Repo()
@@ -412,7 +439,7 @@ svc = SimulationService(
 
 
 # ============================================================
-# BLOQUE 07 — Navegación
+# BLOQUE 08 — Navegación
 # ============================================================
 
 if "view" not in st.session_state:
@@ -422,24 +449,14 @@ view = st.session_state.view
 
 
 # ============================================================
-# BLOQUE 08 — PANEL FINANCIERO
+# BLOQUE 09 — PANEL FINANCIERO
 # ============================================================
 
 if view == "panel":
 
-    st.markdown(
-        '<div class="app-window">',
-        unsafe_allow_html=True,
-    )
-
     render_browser_header()
 
-    st.markdown(
-        '<div class="inner">',
-        unsafe_allow_html=True,
-    )
-
-    st.markdown(
+    html_block(
         """
         <div class="kicker">
             Simulador de convenio
@@ -448,12 +465,11 @@ if view == "panel":
         <h1 class="main-title">
             APROSS OYTE — Panel financiero
         </h1>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
     # --------------------------------------------------------
-    # Historial
+    # Historial de simulaciones
     # --------------------------------------------------------
 
     try:
@@ -503,22 +519,22 @@ if view == "panel":
             - recomendadas
         )
 
-    fact_actual = 0
-    fact_proyectada = 0
+    fact_actual = 0.0
+    fact_proyectada = 0.0
 
+    # Tomamos la simulación más reciente.
+    # No sumamos todo el historial.
     if not hist.empty:
 
         hist_ordenado = hist.copy()
 
         if "fecha_corrida" in hist_ordenado.columns:
 
-            hist_ordenado[
-                "fecha_corrida"
-            ] = pd.to_datetime(
-                hist_ordenado[
-                    "fecha_corrida"
-                ],
-                errors="coerce",
+            hist_ordenado["fecha_corrida"] = (
+                pd.to_datetime(
+                    hist_ordenado["fecha_corrida"],
+                    errors="coerce",
+                )
             )
 
             hist_ordenado = (
@@ -528,63 +544,74 @@ if view == "panel":
                 )
             )
 
-        if not hist_ordenado.empty:
+        ultima = hist_ordenado.iloc[0]
 
-            ultima = hist_ordenado.iloc[0]
-
-            fact_actual = float(
-                ultima.get(
-                    "facturacion_actual_anual",
-                    0,
-                )
-                or 0
+        fact_actual = float(
+            ultima.get(
+                "facturacion_actual_anual",
+                0,
             )
+            or 0
+        )
 
-            fact_proyectada = float(
-                ultima.get(
-                    "facturacion_proyectada_anual",
-                    0,
-                )
-                or 0
+        fact_proyectada = float(
+            ultima.get(
+                "facturacion_proyectada_anual",
+                0,
             )
+            or 0
+        )
 
     impacto = (
         fact_proyectada
         - fact_actual
     )
 
-    st.markdown(
+    html_block(
         f"""
         <div class="metric-grid">
 
             <div class="metric-card">
+
                 <div class="metric-label">
                     Facturación actual anual
                 </div>
+
                 <div class="metric-value">
                     {money(fact_actual)}
                 </div>
+
             </div>
 
+
             <div class="metric-card">
+
                 <div class="metric-label">
                     Facturación proyectada
                 </div>
+
                 <div class="metric-value">
                     {money(fact_proyectada)}
                 </div>
+
             </div>
 
+
             <div class="metric-card">
+
                 <div class="metric-label">
                     Impacto neto estimado
                 </div>
+
                 <div class="metric-value {'green-value' if impacto <= 0 else 'red-value'}">
                     {money(impacto)}
                 </div>
+
             </div>
 
+
             <div class="metric-card">
+
                 <div class="metric-label">
                     Troqueles evaluados
                 </div>
@@ -601,12 +628,11 @@ if view == "panel":
             </div>
 
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
     # --------------------------------------------------------
-    # Comparación financiera
+    # Barras financiera
     # --------------------------------------------------------
 
     max_bar = max(
@@ -625,7 +651,7 @@ if view == "panel":
         fact_proyectada / max_bar * 100,
     )
 
-    st.markdown(
+    html_block(
         f"""
         <div class="section-title">
             Facturación anual: actual vs. proyectada
@@ -633,9 +659,12 @@ if view == "panel":
 
         <div class="bar-row">
 
-            <div>Actual</div>
+            <div>
+                Actual
+            </div>
 
             <div class="bar-bg">
+
                 <div
                     class="bar-fill"
                     style="
@@ -643,6 +672,7 @@ if view == "panel":
                         background:#d8d5cc;
                     ">
                 </div>
+
             </div>
 
             <strong>
@@ -651,9 +681,12 @@ if view == "panel":
 
         </div>
 
+
         <div class="bar-row">
 
-            <div>Proyectada</div>
+            <div>
+                Proyectada
+            </div>
 
             <div class="bar-bg">
 
@@ -671,17 +704,19 @@ if view == "panel":
             </strong>
 
         </div>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
     # --------------------------------------------------------
-    # Historial reciente
+    # Tabla de simulaciones recientes
     # --------------------------------------------------------
 
-    st.markdown(
-        '<div class="section-title">Evaluaciones recientes de incorporación</div>',
-        unsafe_allow_html=True,
+    html_block(
+        """
+        <div class="section-title">
+            Evaluaciones recientes de incorporación
+        </div>
+        """
     )
 
     rows_html = ""
@@ -706,46 +741,54 @@ if view == "panel":
 
         data = data.head(10)
 
-        for _, r in data.iterrows():
+        for _, row_hist in data.iterrows():
 
             codigo = normalize_code(
-                r.get("codigo_troquel")
+                row_hist.get(
+                    "codigo_troquel"
+                )
             )
 
             recomendacion = bool(
-                r.get("recomendacion")
+                row_hist.get(
+                    "recomendacion"
+                )
             )
 
-            badge = (
-                "Recomendado"
-                if recomendacion
-                else "No recomendado"
-            )
-
-            badge_class = (
-                "badge-ok"
-                if recomendacion
-                else "badge-no"
+            candidato_hist = svc.get_troquel(
+                codigo
             )
 
             monodroga = ""
 
-            # Buscar descripción en ALB vigente
-            candidato = svc.get_troquel(
-                codigo
-            )
+            if candidato_hist:
 
-            if candidato:
                 monodroga = str(
-                    candidato.get(
+                    candidato_hist.get(
                         "monodro",
                         "",
                     )
                     or ""
                 )
 
+            if recomendacion:
+
+                badge_html = """
+                <span class="badge badge-ok">
+                    Recomendado
+                </span>
+                """
+
+            else:
+
+                badge_html = """
+                <span class="badge badge-no">
+                    No recomendado
+                </span>
+                """
+
             fa = float(
-                r.get(
+                row_hist.get(
                     "facturacion_actual_anual",
                     0,
                 )
@@ -753,45 +796,41 @@ if view == "panel":
             )
 
             fp = float(
-                r.get(
+                row_hist.get(
                     "facturacion_proyectada_anual",
                     0,
                 )
                 or 0
             )
 
-            imp = fp - fa
+            impacto_fila = fp - fa
 
-            imp_class = (
-                "positive"
-                if imp < 0
-                else
-                "negative"
-                if imp > 0
-                else
-                "muted"
-            )
+            if impacto_fila < 0:
+                impacto_class = "positive"
+
+            elif impacto_fila > 0:
+                impacto_class = "negative"
+
+            else:
+                impacto_class = "muted"
 
             rows_html += f"""
             <tr>
 
-                <td>{codigo}</td>
+                <td>
+                    {codigo}
+                </td>
 
                 <td>
                     {monodroga}
                 </td>
 
                 <td>
-                    <span class="badge {badge_class}">
-                        {badge}
-                    </span>
+                    {badge_html}
                 </td>
 
-                <td
-                    class="{imp_class}"
-                    style="text-align:right;"
-                >
-                    {money(imp)}
+                <td class="{impacto_class}">
+                    {money(impacto_fila)}
                 </td>
 
             </tr>
@@ -801,6 +840,7 @@ if view == "panel":
 
         rows_html = """
         <tr>
+
             <td
                 colspan="4"
                 style="
@@ -811,6 +851,7 @@ if view == "panel":
             >
                 Todavía no hay simulaciones realizadas.
             </td>
+
         </tr>
         """
 
@@ -818,16 +859,20 @@ if view == "panel":
         f"""
         <style>
 
+        body {{
+            margin:0;
+            font-family:Arial, sans-serif;
+        }}
+
         .reco-table {{
             width:100%;
             border-collapse:collapse;
-            font-family:Arial, sans-serif;
-            font-size:14px;
+            font-size:13px;
         }}
 
         .reco-table th {{
             background:#1f5b6b;
-            color:white;
+            color:#ffffff;
             padding:10px 13px;
             text-align:left;
         }}
@@ -835,7 +880,7 @@ if view == "panel":
         .reco-table td {{
             padding:10px 13px;
             border-bottom:1px solid #eeeae2;
-            color:#333;
+            color:#333333;
         }}
 
         .reco-table tr:nth-child(even) {{
@@ -846,7 +891,7 @@ if view == "panel":
             display:inline-block;
             border-radius:999px;
             padding:4px 18px;
-            font-size:12px;
+            font-size:11px;
         }}
 
         .badge-ok {{
@@ -860,18 +905,21 @@ if view == "panel":
         }}
 
         .positive {{
-            color:#08765f;
+            color:#08765f !important;
             font-weight:800;
+            text-align:right;
         }}
 
         .negative {{
-            color:#a33d2c;
+            color:#a33d2c !important;
             font-weight:800;
+            text-align:right;
         }}
 
         .muted {{
-            color:#99948b;
+            color:#99948b !important;
             font-weight:700;
+            text-align:right;
         }}
 
         </style>
@@ -881,12 +929,23 @@ if view == "panel":
             <thead>
 
                 <tr>
-                    <th>Troquel</th>
-                    <th>Monodroga</th>
-                    <th>Recomendación</th>
+
+                    <th>
+                        Troquel
+                    </th>
+
+                    <th>
+                        Monodroga
+                    </th>
+
+                    <th>
+                        Recomendación
+                    </th>
+
                     <th style="text-align:right;">
                         Impacto anual
                     </th>
+
                 </tr>
 
             </thead>
@@ -897,47 +956,30 @@ if view == "panel":
 
         </table>
         """,
-        height=430,
+        height=410,
         scrolling=True,
     )
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("")
 
     if st.button(
         "Nueva simulación",
         type="primary",
     ):
 
-        st.session_state.view = (
-            "simular"
-        )
+        st.session_state.view = "simular"
 
         st.rerun()
 
-    st.markdown(
-        "</div></div>",
-        unsafe_allow_html=True,
-    )
-
 
 # ============================================================
-# BLOQUE 09 — NUEVA SIMULACIÓN — CASO A
+# BLOQUE 10 — NUEVA SIMULACIÓN — CASO A
 # ============================================================
 
 else:
 
-    st.markdown(
-        '<div class="app-window">',
-        unsafe_allow_html=True,
-    )
-
     render_browser_header(
         "simulador-convenio.aprossoyte.local/nueva-simulacion"
-    )
-
-    st.markdown(
-        '<div class="inner">',
-        unsafe_allow_html=True,
     )
 
     if st.button(
@@ -948,7 +990,7 @@ else:
 
         st.rerun()
 
-    st.markdown(
+    html_block(
         """
         <div class="kicker">
             Simulador de convenio
@@ -957,8 +999,7 @@ else:
         <h1 class="main-title">
             Nueva simulación — Alta de troquel
         </h1>
-        """,
-        unsafe_allow_html=True,
+        """
     )
 
     # --------------------------------------------------------
@@ -971,26 +1012,35 @@ else:
     ):
 
         opciones = (
-            svc.troqueles[
-                "tronquel"
-            ]
+            svc.troqueles["tronquel"]
             .dropna()
             .astype(str)
             .unique()
             .tolist()
         )
 
-        opciones = sorted(
-            opciones
-        )
+        # Orden numérico cuando sea posible
+        try:
+
+            opciones = sorted(
+                opciones,
+                key=lambda x: int(float(x)),
+            )
+
+        except Exception:
+
+            opciones = sorted(
+                opciones
+            )
 
     else:
 
         opciones = []
 
     left, right = st.columns(
-        [1.15, 0.95]
+        [1.10, 0.90]
     )
+
 
     # ========================================================
     # FORMULARIO
@@ -1023,8 +1073,9 @@ else:
             type="primary",
         )
 
+
     # ========================================================
-    # VALIDACIÓN PREVIA
+    # CANDIDATO
     # ========================================================
 
     candidato = (
@@ -1033,11 +1084,16 @@ else:
         else None
     )
 
+
+    # ========================================================
+    # VALIDACIÓN PREVIA
+    # ========================================================
+
     with right:
 
         if candidato:
 
-            monodroga = (
+            monodroga = str(
                 candidato.get(
                     "monodro",
                     "",
@@ -1045,7 +1101,7 @@ else:
                 or ""
             )
 
-            forma = (
+            forma = str(
                 candidato.get(
                     "formas",
                     "",
@@ -1053,15 +1109,12 @@ else:
                 or ""
             )
 
-            potencia = (
-                candidato.get(
-                    "potencia",
-                    "",
-                )
-                or ""
+            potencia = candidato.get(
+                "potencia",
+                ""
             )
 
-            unidad = (
+            unidad = str(
                 candidato.get(
                     "unidad_potencia",
                     "",
@@ -1069,7 +1122,7 @@ else:
                 or ""
             )
 
-            laboratorio = (
+            laboratorio = str(
                 candidato.get(
                     "desc_laboratorio",
                     "",
@@ -1077,13 +1130,10 @@ else:
                 or ""
             )
 
-            pvp = (
-                candidato.get(
-                    "precio",
-                    0,
-                )
-                or 0
-            )
+            pvp = candidato.get(
+                "precio",
+                0
+            ) or 0
 
             fecha = candidato.get(
                 "fecha"
@@ -1118,35 +1168,72 @@ else:
             )
 
             mejora_banda = (
-                banda_hipotetica.get(
-                    "porcentaje_descuento",
-                    0,
+                float(
+                    banda_hipotetica.get(
+                        "porcentaje_descuento",
+                        0,
+                    )
+                    or 0
                 )
                 >
-                banda_actual.get(
-                    "porcentaje_descuento",
-                    0,
+                float(
+                    banda_actual.get(
+                        "porcentaje_descuento",
+                        0,
+                    )
+                    or 0
                 )
-            )
-
-            cumple_pvp = (
-                segundo_pvp is not None
-                and float(pvp)
-                <= float(segundo_pvp)
             )
 
             try:
+
+                cumple_pvp = (
+                    segundo_pvp is not None
+                    and float(pvp)
+                    <= float(segundo_pvp)
+                )
+
+            except Exception:
+
+                cumple_pvp = False
+
+            elegible, motivo_elegibilidad = (
+                is_eligible(
+                    candidato,
+                    months_window,
+                )
+            )
+
+            try:
+
                 baja_num = int(
                     float(baja)
                 )
+
             except Exception:
+
                 baja_num = None
 
             activo = (
                 baja_num == 0
             )
 
-            st.markdown(
+            fecha_texto = "-"
+
+            if fecha is not None and not pd.isna(fecha):
+
+                try:
+
+                    fecha_texto = (
+                        pd.to_datetime(fecha)
+                        .strftime("%d/%m/%Y")
+                    )
+
+                except Exception:
+
+                    fecha_texto = str(fecha)
+
+            html_block(
                 f"""
                 <div class="validation-card">
 
@@ -1154,110 +1241,210 @@ else:
                         Validación previa
                     </div>
 
+
                     <div class="validation-row">
-                        <span>Presentación activa</span>
+
+                        <span>
+                            Presentación activa
+                        </span>
+
                         <strong class="{'check-ok' if activo else 'check-no'}">
                             {'Sí' if activo else 'No'}
                         </strong>
+
                     </div>
 
+
                     <div class="validation-row">
-                        <span>Fecha vigencia PVP</span>
-                        <strong>
-                            {fecha if fecha else '-'}
+
+                        <span>
+                            Precio vigente ≤ {months_window} meses
+                        </span>
+
+                        <strong class="{'check-ok' if elegible else 'check-no'}">
+                            {'Sí' if elegible else 'No'}
                         </strong>
+
                     </div>
 
+
                     <div class="validation-row">
-                        <span>Actualmente en convenio</span>
+
+                        <span>
+                            Fecha vigencia PVP
+                        </span>
+
+                        <strong>
+                            {fecha_texto}
+                        </strong>
+
+                    </div>
+
+
+                    <div class="validation-row">
+
+                        <span>
+                            Actualmente en convenio
+                        </span>
+
                         <strong class="{'check-no' if en_convenio else 'check-ok'}">
                             {'Sí' if en_convenio else 'No'}
                         </strong>
+
                     </div>
 
-                    <div class="validation-row">
-                        <span>Monodroga</span>
-                        <strong>{monodroga}</strong>
-                    </div>
 
                     <div class="validation-row">
-                        <span>Presentación equivalente</span>
+
+                        <span>
+                            Monodroga
+                        </span>
+
+                        <strong>
+                            {monodroga}
+                        </strong>
+
+                    </div>
+
+
+                    <div class="validation-row">
+
+                        <span>
+                            Presentación equivalente
+                        </span>
+
                         <strong>
                             {forma} · {potencia} {unidad}
                         </strong>
+
                     </div>
 
-                    <div class="validation-row">
-                        <span>Laboratorio</span>
-                        <strong>{laboratorio}</strong>
-                    </div>
 
                     <div class="validation-row">
-                        <span>PVP candidato</span>
-                        <strong>{money(pvp)}</strong>
+
+                        <span>
+                            Laboratorio
+                        </span>
+
+                        <strong>
+                            {laboratorio}
+                        </strong>
+
                     </div>
 
+
                     <div class="validation-row">
-                        <span>Banda actual</span>
+
+                        <span>
+                            PVP candidato
+                        </span>
+
+                        <strong>
+                            {money(pvp)}
+                        </strong>
+
+                    </div>
+
+
+                    <div class="validation-row">
+
+                        <span>
+                            Banda actual
+                        </span>
+
                         <strong>
                             {percentage(
                                 banda_actual.get(
                                     "porcentaje_descuento",
-                                    0
+                                    0,
                                 )
                             )}
                             ·
                             {banda_actual.get(
                                 "cantidad_laboratorios",
-                                0
+                                0,
                             )}
                             lab.
                         </strong>
+
                     </div>
 
+
                     <div class="validation-row">
-                        <span>Banda hipotética</span>
+
+                        <span>
+                            Banda con incorporación
+                        </span>
+
                         <strong>
                             {percentage(
                                 banda_hipotetica.get(
                                     "porcentaje_descuento",
-                                    0
+                                    0,
                                 )
                             )}
                             ·
                             {banda_hipotetica.get(
                                 "cantidad_laboratorios",
-                                0
+                                0,
                             )}
                             lab.
                         </strong>
+
                     </div>
 
+
                     <div class="validation-row">
-                        <span>Mejora de banda</span>
+
+                        <span>
+                            Mejora de banda
+                        </span>
+
                         <strong class="{'check-ok' if mejora_banda else 'check-no'}">
                             {'Sí' if mejora_banda else 'No'}
                         </strong>
+
                     </div>
 
+
                     <div class="validation-row">
-                        <span>Segundo PVP más alto</span>
+
+                        <span>
+                            Segundo PVP más alto
+                        </span>
+
                         <strong>
-                            {money(segundo_pvp) if segundo_pvp is not None else '-'}
+                            {
+                                money(segundo_pvp)
+                                if segundo_pvp is not None
+                                else "-"
+                            }
                         </strong>
+
                     </div>
 
+
                     <div class="validation-row">
-                        <span>Cumple criterio de PVP</span>
+
+                        <span>
+                            Cumple criterio de PVP
+                        </span>
+
                         <strong class="{'check-ok' if cumple_pvp else 'check-no'}">
                             {'Sí' if cumple_pvp else 'No'}
                         </strong>
+
                     </div>
 
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
+
+            if not elegible:
+
+                st.caption(
+                    motivo_elegibilidad
+                )
 
         else:
 
@@ -1265,8 +1452,9 @@ else:
                 "Seleccione un troquel."
             )
 
+
     # ========================================================
-    # EJECUCIÓN
+    # EJECUTAR SIMULACIÓN
     # ========================================================
 
     if ejecutar and codigo:
@@ -1279,12 +1467,12 @@ else:
             )
 
             # ------------------------------------------------
-            # Persistir resultado
+            # Guardar
             # ------------------------------------------------
 
             try:
 
-                saved = repo.save_result(
+                repo.save_result(
                     result.__dict__
                 )
 
@@ -1303,53 +1491,55 @@ else:
             # Resultado
             # ------------------------------------------------
 
-            impacto = (
+            impacto_resultado = (
                 result.facturacion_proyectada_anual
                 - result.facturacion_actual_anual
             )
 
-            estado = (
-                result.detalle_consumo.get(
-                    "estado",
-                    "",
-                )
+            detalle = (
+                result.detalle_consumo
                 if result.detalle_consumo
-                else ""
+                else {}
+            )
+
+            estado_resultado = detalle.get(
+                "estado",
+                "",
             )
 
             if result.recomendacion:
 
-                badge_resultado = (
-                    '<span class="result-ok">'
-                    'RECOMENDAR INCORPORACIÓN'
-                    '</span>'
-                )
+                resultado_html = """
+                <span class="result-ok">
+                    RECOMENDAR INCORPORACIÓN
+                </span>
+                """
 
-            elif estado == "NO_ELEGIBLE":
+            elif estado_resultado == "NO_ELEGIBLE":
 
-                badge_resultado = (
-                    '<span class="result-no">'
-                    'PRESENTACIÓN NO ELEGIBLE'
-                    '</span>'
-                )
+                resultado_html = """
+                <span class="result-no">
+                    PRESENTACIÓN NO ELEGIBLE
+                </span>
+                """
 
-            elif estado == "YA_CONVENIDO":
+            elif estado_resultado == "YA_CONVENIDO":
 
-                badge_resultado = (
-                    '<span class="result-no">'
-                    'TROQUEL YA CONVENIDO'
-                    '</span>'
-                )
+                resultado_html = """
+                <span class="result-no">
+                    TROQUEL YA CONVENIDO
+                </span>
+                """
 
             else:
 
-                badge_resultado = (
-                    '<span class="result-no">'
-                    'NO RECOMENDAR INCORPORACIÓN'
-                    '</span>'
-                )
+                resultado_html = """
+                <span class="result-no">
+                    NO RECOMENDAR INCORPORACIÓN
+                </span>
+                """
 
-            st.markdown(
+            html_block(
                 f"""
                 <div class="result-box">
 
@@ -1358,103 +1548,109 @@ else:
                     </h3>
 
                     <p>
-                        {badge_resultado}
+                        {resultado_html}
                     </p>
 
                     <p>
-                        <strong>Motivo:</strong>
+                        <strong>
+                            Motivo:
+                        </strong>
+
                         {result.motivo}
                     </p>
 
-                    <div
-                        class="metric-grid"
-                        style="
-                            grid-template-columns:
-                            repeat(3,1fr);
-                        "
-                    >
+                </div>
+                """
+            )
 
-                        <div class="metric-card">
+            html_block(
+                f"""
+                <div
+                    class="metric-grid"
+                    style="
+                        grid-template-columns:
+                        repeat(3,1fr);
+                    "
+                >
 
-                            <div class="metric-label">
-                                Facturación actual anual
-                            </div>
+                    <div class="metric-card">
 
-                            <div class="metric-value">
-                                {money(
-                                    result.facturacion_actual_anual
-                                )}
-                            </div>
-
+                        <div class="metric-label">
+                            Facturación actual anual
                         </div>
 
-                        <div class="metric-card">
-
-                            <div class="metric-label">
-                                Facturación proyectada anual
-                            </div>
-
-                            <div class="metric-value">
-                                {money(
-                                    result.facturacion_proyectada_anual
-                                )}
-                            </div>
-
-                        </div>
-
-                        <div class="metric-card">
-
-                            <div class="metric-label">
-                                Impacto anual
-                            </div>
-
-                            <div class="metric-value {'green-value' if impacto <= 0 else 'red-value'}">
-                                {money(impacto)}
-                            </div>
-
+                        <div class="metric-value">
+                            {money(
+                                result.facturacion_actual_anual
+                            )}
                         </div>
 
                     </div>
 
-                    <p class="footer-note">
-                        {saved_msg}
-                    </p>
+
+                    <div class="metric-card">
+
+                        <div class="metric-label">
+                            Facturación proyectada anual
+                        </div>
+
+                        <div class="metric-value">
+                            {money(
+                                result.facturacion_proyectada_anual
+                            )}
+                        </div>
+
+                    </div>
+
+
+                    <div class="metric-card">
+
+                        <div class="metric-label">
+                            Impacto anual
+                        </div>
+
+                        <div class="metric-value {'green-value' if impacto_resultado <= 0 else 'red-value'}">
+                            {money(
+                                impacto_resultado
+                            )}
+                        </div>
+
+                    </div>
 
                 </div>
-                """,
-                unsafe_allow_html=True,
+                """
             )
 
-                # ------------------------------------------------
-            # Información de consumo
-            # ------------------------------------------------
+            st.caption(
+                saved_msg
+            )
 
-            if result.detalle_consumo:
 
-                detalle = result.detalle_consumo
+            # =================================================
+            # INFORMACIÓN DE CONSUMO
+            # =================================================
 
-                st.markdown(
-                    '<div class="section-title">Información de consumo</div>',
-                    unsafe_allow_html=True,
+            if detalle:
+
+                html_block(
+                    """
+                    <div class="section-title">
+                        Información de consumo
+                    </div>
+                    """
                 )
 
                 c1, c2, c3, c4 = st.columns(4)
 
-                c1.metric(
-                    "Afiliados monodroga",
-                    detalle.get(
-                        "afiliados_monodroga",
-                        0,
-                    ),
-                )
+                afiliados_mono = detalle.get(
+                    "afiliados_monodroga",
+                    0,
+                ) or 0
 
-                c2.metric(
-                    "Afiliados misma potencia",
-                    detalle.get(
-                        "afiliados_misma_potencia",
-                        0,
-                    ),
-                )
+                afiliados_potencia = detalle.get(
+                    "afiliados_misma_potencia",
+                    0,
+                ) or 0
 
                 promedio_cajas = detalle.get(
                     "promedio_mensual_cajas_por_afiliado",
@@ -1465,6 +1661,16 @@ else:
                     "tasa_uso_potencia",
                     0,
                 ) or 0
+
+                c1.metric(
+                    "Afiliados monodroga",
+                    int(afiliados_mono),
+                )
+
+                c2.metric(
+                    "Afiliados misma potencia",
+                    int(afiliados_potencia),
+                )
 
                 c3.metric(
                     "Cajas mensuales / afiliado",
@@ -1492,7 +1698,7 @@ else:
 
     else:
 
-        st.markdown(
+        html_block(
             """
             <div class="result-placeholder">
 
@@ -1502,7 +1708,7 @@ else:
                         El resultado de la simulación aparecerá aquí
                     </strong>
 
-                    <br>
+                    <br><br>
 
                     Se evaluará elegibilidad, banda,
                     PVP, consumo e impacto económico.
@@ -1510,11 +1716,5 @@ else:
                 </div>
 
             </div>
-            """,
-            unsafe_allow_html=True,
+            """
         )
-
-    st.markdown(
-        "</div></div>",
-        unsafe_allow_html=True,
-    )
