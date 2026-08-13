@@ -1,20 +1,10 @@
-
-# ============================================================
-# BLOQUE 01 — Imports
-# ============================================================
-
 from __future__ import annotations
 
 from typing import Any
-
 import pandas as pd
 
 from db.supabase_client import get_supabase
 
-
-# ============================================================
-# BLOQUE 02 — Repositorio principal
-# ============================================================
 
 class Repo:
 
@@ -22,9 +12,9 @@ class Repo:
         self.sb = get_supabase()
 
 
-# ============================================================
-# BLOQUE 03 — Lectura completa de tablas con paginación
-# ============================================================
+    # ========================================================
+    # LECTURA DE TABLAS
+    # ========================================================
 
     def table_df(
         self,
@@ -32,60 +22,40 @@ class Repo:
         limit: int | None = None,
         page_size: int = 1000,
     ) -> pd.DataFrame:
+
         """
-        Lee una tabla completa de Supabase mediante paginación.
+        Lee una tabla de Supabase por páginas.
 
-        Supabase limita la cantidad de filas devueltas por
-        consulta, por lo que se realizan consultas sucesivas
-        usando range().
-
-        Parámetros
-        ----------
-        table:
-            Nombre de la tabla.
-
-        limit:
-            Si se informa, devuelve como máximo esa cantidad.
-            Si es None, intenta leer la tabla completa.
-
-        page_size:
-            Cantidad de registros por consulta.
-            Default: 1000.
+        Si limit=None, intenta traer toda la tabla.
+        Si limit tiene un valor, trae como máximo esa cantidad.
         """
 
-        all_rows = []
+        rows = []
         start = 0
 
         while True:
 
-            # ------------------------------------------------
-            # Determinar final del bloque
-            # ------------------------------------------------
-
             if limit is not None:
 
-                remaining = limit - len(all_rows)
+                remaining = limit - len(rows)
 
                 if remaining <= 0:
                     break
 
-                current_page_size = min(
+                current_size = min(
                     page_size,
                     remaining,
                 )
 
             else:
-                current_page_size = page_size
+
+                current_size = page_size
 
             end = (
                 start
-                + current_page_size
+                + current_size
                 - 1
             )
-
-            # ------------------------------------------------
-            # Consulta paginada
-            # ------------------------------------------------
 
             response = (
                 self.sb
@@ -95,54 +65,41 @@ class Repo:
                 .execute()
             )
 
-            rows = response.data or []
+            batch = (
+                response.data
+                if response.data
+                else []
+            )
 
-            if not rows:
+            if not batch:
                 break
 
-            all_rows.extend(rows)
+            rows.extend(batch)
 
-            # ------------------------------------------------
-            # Si llegaron menos filas que las solicitadas,
-            # llegamos al final de la tabla.
-            # ------------------------------------------------
-
-            if len(rows) < current_page_size:
+            if len(batch) < current_size:
                 break
 
-            start += current_page_size
+            start += current_size
 
-        return pd.DataFrame(all_rows)
+        return pd.DataFrame(rows)
 
 
-# ============================================================
-# BLOQUE 04 — Obtener troquel vigente desde ALB
-# ============================================================
+    # ========================================================
+    # BUSCAR TROQUEL
+    # ========================================================
 
     def get_troquel(
         self,
         codigo: str,
     ) -> dict[str, Any] | None:
-        """
-        Busca un troquel en src_troqueles_alb.
-
-        Si existen varias versiones del mismo troquel,
-        devuelve la de fecha más reciente.
-        Ante empate, utiliza el ID más alto.
-        """
 
         data = (
             self.sb
             .table("src_troqueles_alb")
             .select("*")
-            .eq("tronquel", codigo)
-            .order(
-                "fecha",
-                desc=True,
-            )
-            .order(
-                "id",
-                desc=True,
+            .eq(
+                "tronquel",
+                codigo,
             )
             .limit(1)
             .execute()
@@ -156,27 +113,19 @@ class Repo:
         )
 
 
-# ============================================================
-# BLOQUE 05 — Verificar pertenencia al convenio
-# ============================================================
+    # ========================================================
+    # VERIFICAR CONVENIO
+    # ========================================================
 
     def is_in_convenio(
         self,
         codigo: str,
     ) -> bool:
-        """
-        Regla definida:
-
-        Si el troquel figura en src_convenio_oyte,
-        se considera convenido.
-
-        El atributo Estado no interviene.
-        """
 
         data = (
             self.sb
             .table("src_convenio_oyte")
-            .select("troquel")
+            .select("*")
             .eq(
                 "troquel",
                 codigo,
@@ -186,21 +135,20 @@ class Repo:
             .data
         )
 
+        # Regla definida:
+        # si figura en la lista de convenio,
+        # se considera convenido.
         return bool(data)
 
 
-# ============================================================
-# BLOQUE 06 — Guardar resultado de simulación
-# ============================================================
+    # ========================================================
+    # GUARDAR SIMULACIÓN
+    # ========================================================
 
     def save_result(
         self,
         result: dict[str, Any],
     ) -> dict[str, Any]:
-        """
-        Persiste el resultado de una simulación
-        en simulacion_resultados.
-        """
 
         data = (
             self.sb
