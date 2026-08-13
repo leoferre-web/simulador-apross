@@ -1425,15 +1425,13 @@ else:
                 unsafe_allow_html=True,
             )
 
-            # ------------------------------------------------
+                # ------------------------------------------------
             # Información de consumo
             # ------------------------------------------------
 
             if result.detalle_consumo:
 
-                detalle = (
-                    result.detalle_consumo
-                )
+                detalle = result.detalle_consumo
 
                 st.markdown(
                     '<div class="section-title">Información de consumo</div>',
@@ -1458,20 +1456,24 @@ else:
                     ),
                 )
 
+                promedio_cajas = detalle.get(
+                    "promedio_mensual_cajas_por_afiliado",
+                    0,
+                ) or 0
+
+                tasa_uso = detalle.get(
+                    "tasa_uso_potencia",
+                    0,
+                ) or 0
+
                 c3.metric(
                     "Cajas mensuales / afiliado",
-                    f"{detalle.get(
-                        'promedio_mensual_cajas_por_afiliado',
-                        0
-                    ):,.2f}",
+                    f"{float(promedio_cajas):,.2f}",
                 )
 
                 c4.metric(
                     "Tasa uso potencia",
-                    f"{detalle.get(
-                        'tasa_uso_potencia',
-                        0
-                    ):.1%}",
+                    f"{float(tasa_uso):.1%}",
                 )
 
                 with st.expander(
