@@ -437,9 +437,7 @@ svc = SimulationService(
     bandas=bandas,
     liquidaciones=liquidaciones,
 )
-st.write("DEBUG troqueles recibidos:", len(troqueles))
-st.write("DEBUG columnas:", list(troqueles.columns))
-st.write("DEBUG troqueles vigentes:", len(svc.troqueles))
+
 
 # ============================================================
 # BLOQUE 08 — Navegación
