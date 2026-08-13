@@ -1,5 +1,5 @@
 # ============================================================
-# BLOQUE 01 — Imports y configuración inicial
+# BLOQUE 01 — Imports
 # ============================================================
 
 import sys
@@ -7,9 +7,9 @@ from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+import pandas as pd
 import streamlit as st
 import streamlit.components.v1 as components
-import pandas as pd
 
 from core.repositories import Repo
 from core.services import SimulationService
@@ -19,20 +19,25 @@ from core.services import SimulationService
 # BLOQUE 02 — Configuración de página
 # ============================================================
 
-st.set_page_config(page_title="Simulador APROSS OYTE", layout="wide")
+st.set_page_config(
+    page_title="Simulador APROSS OYTE",
+    layout="wide",
+)
 
 
 # ============================================================
-# BLOQUE 03 — Estilos CSS generales
+# BLOQUE 03 — Estilos CSS
 # ============================================================
 
 st.markdown("""
 <style>
+
 .block-container {
     padding-top: 2rem;
     padding-bottom: 2rem;
     max-width: 1180px;
 }
+
 .app-window {
     background: #ffffff;
     border: 1px solid #dedbd2;
@@ -41,6 +46,7 @@ st.markdown("""
     box-shadow: 0 8px 24px rgba(0,0,0,.08);
     overflow: hidden;
 }
+
 .top-bar {
     height: 42px;
     background: #f4f1ea;
@@ -50,16 +56,24 @@ st.markdown("""
     justify-content: center;
     position: relative;
 }
+
 .dots {
     position: absolute;
     left: 18px;
     display: flex;
     gap: 7px;
 }
-.dot { width: 11px; height: 11px; border-radius: 50%; }
+
+.dot {
+    width: 11px;
+    height: 11px;
+    border-radius: 50%;
+}
+
 .red { background:#e86b5c; }
 .yellow { background:#e8bf4f; }
 .green { background:#52b788; }
+
 .url-pill {
     background: #fff;
     border: 1px solid #ddd8ce;
@@ -68,115 +82,139 @@ st.markdown("""
     color: #999;
     font-size: 12px;
 }
+
 .inner {
     padding: 36px 44px;
 }
+
 .kicker {
     color:#8f8a80;
-    font-size: 12px;
-    text-transform: uppercase;
-    letter-spacing: .04em;
-    margin-bottom: 3px;
+    font-size:12px;
+    text-transform:uppercase;
+    letter-spacing:.04em;
+    margin-bottom:3px;
 }
-.title-row {
-    display:flex;
-    justify-content:space-between;
-    align-items:center;
-    gap:20px;
-}
+
 .main-title {
-    font-size: 26px;
-    font-weight: 800;
+    font-size:26px;
+    font-weight:800;
     color:#2b2b2b;
     margin:0;
 }
+
 .metric-grid {
     display:grid;
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns:repeat(4, 1fr);
     gap:20px;
     margin-top:32px;
 }
+
 .metric-card {
     background:#f5f2ec;
     border-radius:12px;
     padding:20px 22px;
     min-height:92px;
 }
+
 .metric-label {
     color:#716c64;
     font-size:13px;
     margin-bottom:8px;
 }
+
 .metric-value {
     color:#2c2c2c;
     font-size:25px;
     font-weight:800;
 }
+
 .metric-sub {
     color:#9b958b;
     font-size:12px;
     margin-top:4px;
 }
+
 .green-value {
     color:#08765f;
 }
+
+.red-value {
+    color:#a33d2c;
+}
+
 .section-title {
-    margin-top:18px;
+    margin-top:22px;
     margin-bottom:10px;
     color:#6f6a62;
     font-size:15px;
 }
+
 .bar-row {
     display:grid;
-    grid-template-columns: 90px 1fr 110px;
+    grid-template-columns:90px 1fr 110px;
     align-items:center;
     gap:18px;
     margin:12px 0;
     font-size:13px;
     color:#777169;
 }
+
 .bar-bg {
     height:18px;
     background:#dfddd5;
     border-radius:999px;
     overflow:hidden;
 }
+
 .bar-fill {
     height:18px;
     background:#0d765f;
     border-radius:999px;
 }
-.footer-note {
-    color:#9d978d;
-    font-size:11px;
-    margin-top:16px;
-}
+
 .validation-card {
     background:#f5f2ec;
     border-radius:12px;
     padding:22px;
 }
+
 .validation-title {
     font-weight:800;
     color:#333;
     margin-bottom:14px;
 }
-.check {
-    color:#0c7660;
-    font-weight:700;
-}
+
 .validation-row {
     display:flex;
     justify-content:space-between;
-    padding:6px 0;
+    gap:20px;
+    padding:7px 0;
     font-size:13px;
+    border-bottom:1px solid #e5e0d6;
     color:#5f5a53;
 }
+
+.validation-row:last-child {
+    border-bottom:none;
+}
+
 .validation-row strong {
     color:#2d2d2d;
+    text-align:right;
 }
+
+.check-ok {
+    color:#08765f;
+    font-weight:800;
+}
+
+.check-no {
+    color:#a33d2c;
+    font-weight:800;
+}
+
 .result-placeholder {
-    margin-top:70px;
+    margin-top:40px;
     border:2px dashed #ddd6c9;
     border-radius:14px;
     min-height:120px;
@@ -187,22 +225,57 @@ st.markdown("""
     color:#aaa39a;
     font-style:italic;
 }
+
 .result-box {
-    margin-top:42px;
+    margin-top:32px;
     border:1px solid #e5dfd3;
     border-radius:14px;
     padding:22px;
     background:#fff;
 }
+
+.result-ok {
+    background:#d9f1e9;
+    color:#0e6d5e;
+    padding:7px 14px;
+    border-radius:999px;
+    display:inline-block;
+    font-weight:700;
+    font-size:13px;
+}
+
+.result-no {
+    background:#f8e3db;
+    color:#924126;
+    padding:7px 14px;
+    border-radius:999px;
+    display:inline-block;
+    font-weight:700;
+    font-size:13px;
+}
+
+.footer-note {
+    color:#9d978d;
+    font-size:11px;
+    margin-top:16px;
+}
+
 button[kind="primary"] {
     background:#1f5b6b !important;
     border-radius:8px !important;
 }
-@media(max-width: 850px) {
-    .metric-grid { grid-template-columns: repeat(2, 1fr); }
-    .title-row { flex-direction:column; align-items:flex-start; }
-    .url-pill { padding:5px 30px; }
+
+@media(max-width:850px) {
+
+    .metric-grid {
+        grid-template-columns:repeat(2,1fr);
+    }
+
+    .url-pill {
+        padding:5px 30px;
+    }
 }
+
 </style>
 """, unsafe_allow_html=True)
 
@@ -211,17 +284,8 @@ button[kind="primary"] {
 # BLOQUE 04 — Funciones auxiliares
 # ============================================================
 
-@st.cache_data(ttl=60)
-def load_data():
-    repo = Repo()
-    return (
-        repo.table_df("troqueles"),
-        repo.table_df("convenio_oyte"),
-        repo.table_df("liquidaciones"),
-    )
-
-
 def money(value):
+
     try:
         value = float(value or 0)
     except Exception:
@@ -233,19 +297,49 @@ def money(value):
     if value >= 1_000_000:
         return f"{sign}${value / 1_000_000:,.1f}M"
 
-    return f"{sign}${value:,.0f}"
+    return f"{sign}${value:,.2f}"
 
 
-def render_browser_header(path="simulador-convenio.aprossoyte.local"):
+def percentage(value):
+
+    try:
+        return f"{float(value):.0%}"
+    except Exception:
+        return "-"
+
+
+def normalize_code(value):
+    """
+    Evita códigos visualmente como 123456.0.
+    """
+
+    if pd.isna(value):
+        return ""
+
+    try:
+        return str(int(float(value)))
+    except Exception:
+        return str(value)
+
+
+def render_browser_header(
+    path="simulador-convenio.aprossoyte.local"
+):
+
     st.markdown(
         f"""
         <div class="top-bar">
+
             <div class="dots">
                 <span class="dot red"></span>
                 <span class="dot yellow"></span>
                 <span class="dot green"></span>
             </div>
-            <div class="url-pill">{path}</div>
+
+            <div class="url-pill">
+                {path}
+            </div>
+
         </div>
         """,
         unsafe_allow_html=True,
@@ -253,235 +347,469 @@ def render_browser_header(path="simulador-convenio.aprossoyte.local"):
 
 
 # ============================================================
-# BLOQUE 05 — Carga de datos y servicios
+# BLOQUE 05 — Carga de datos desde Supabase
 # ============================================================
+
+@st.cache_data(ttl=300)
+def load_data():
+
+    repo = Repo()
+
+    troqueles = repo.table_df(
+        "src_troqueles_alb"
+    )
+
+    convenio = repo.table_df(
+        "src_convenio_oyte"
+    )
+
+    bandas = repo.table_df(
+        "src_bandas_descuento"
+    )
+
+    liquidaciones = repo.table_df(
+        "src_liquidaciones"
+    )
+
+    return (
+        troqueles,
+        convenio,
+        bandas,
+        liquidaciones,
+    )
+
 
 try:
-    troqueles, convenio, liquidaciones = load_data()
-except Exception as e:
-    st.error(f"No se pudieron cargar datos desde Supabase: {e}")
-    st.stop()
 
-svc = SimulationService(troqueles, convenio, liquidaciones)
-repo = Repo()
+    (
+        troqueles,
+        convenio,
+        bandas,
+        liquidaciones,
+    ) = load_data()
+
+except Exception as e:
+
+    st.error(
+        f"No se pudieron cargar los datos desde Supabase: {e}"
+    )
+
+    st.stop()
 
 
 # ============================================================
-# BLOQUE 06 — Navegación de vistas y filtros
+# BLOQUE 06 — Servicios
+# ============================================================
+
+repo = Repo()
+
+svc = SimulationService(
+    troqueles=troqueles,
+    convenio=convenio,
+    bandas=bandas,
+    liquidaciones=liquidaciones,
+)
+
+
+# ============================================================
+# BLOQUE 07 — Navegación
 # ============================================================
 
 if "view" not in st.session_state:
     st.session_state.view = "panel"
 
-if "case_filter" not in st.session_state:
-    st.session_state.case_filter = "Todas"
-
 view = st.session_state.view
 
 
 # ============================================================
-# BLOQUE 07 — Cálculo base del panel
-# ============================================================
-
-convenio_codes = svc.active_convenio_codes()
-
-if troqueles.empty or liquidaciones.empty:
-    fact_actual = 0
-else:
-    try:
-        fact_actual = svc._full(
-            "A",
-            "",
-            False,
-            "",
-            {"monodroga": "", "potencia": ""},
-            convenio_codes,
-            convenio_codes,
-        ).facturacion_actual_anual
-    except Exception:
-        fact_actual = 0
-
-
-# ============================================================
-# BLOQUE 08 — Vista Panel Financiero
+# BLOQUE 08 — PANEL FINANCIERO
 # ============================================================
 
 if view == "panel":
-    st.markdown('<div class="app-window">', unsafe_allow_html=True)
+
+    st.markdown(
+        '<div class="app-window">',
+        unsafe_allow_html=True,
+    )
+
     render_browser_header()
-    st.markdown('<div class="inner">', unsafe_allow_html=True)
+
+    st.markdown(
+        '<div class="inner">',
+        unsafe_allow_html=True,
+    )
 
     st.markdown(
         """
-        <div class="title-row">
-            <div>
-                <div class="kicker">Simulador de convenio</div>
-                <h1 class="main-title">APROSS OYTE — Panel financiero</h1>
-            </div>
+        <div class="kicker">
+            Simulador de convenio
         </div>
+
+        <h1 class="main-title">
+            APROSS OYTE — Panel financiero
+        </h1>
         """,
         unsafe_allow_html=True,
     )
 
-    f1, f2, f3, f4 = st.columns([6, 1, 1, 1])
-
-    with f2:
-        if st.button("Todas", use_container_width=True):
-            st.session_state.case_filter = "Todas"
-
-    with f3:
-        if st.button("Altas", use_container_width=True):
-            st.session_state.case_filter = "Altas"
-
-    with f4:
-        if st.button("Bajas", use_container_width=True):
-            st.session_state.case_filter = "Bajas"
-
-    st.caption(f"Filtro activo: {st.session_state.case_filter}")
-
-    fact_proyectada = fact_actual
-    impacto = 0
+    # --------------------------------------------------------
+    # Historial
+    # --------------------------------------------------------
 
     try:
-        hist = repo.table_df("simulacion_resultados", limit=500)
+
+        hist = repo.table_df(
+            "simulacion_resultados",
+            limit=500,
+        )
+
     except Exception:
+
         hist = pd.DataFrame()
 
-    hist_filtrado = hist.copy()
+    # Solo Caso A
+    if (
+        not hist.empty
+        and "tipo_caso" in hist.columns
+    ):
 
-    if not hist_filtrado.empty and "tipo_caso" in hist_filtrado.columns:
-        if st.session_state.case_filter == "Altas":
-            hist_filtrado = hist_filtrado[hist_filtrado["tipo_caso"] == "A"]
+        hist = hist[
+            hist["tipo_caso"] == "A"
+        ].copy()
 
-        elif st.session_state.case_filter == "Bajas":
-            hist_filtrado = hist_filtrado[hist_filtrado["tipo_caso"] == "B"]
+    # --------------------------------------------------------
+    # Métricas
+    # --------------------------------------------------------
 
-    if not hist_filtrado.empty and "facturacion_actual_anual" in hist_filtrado.columns:
-        fact_actual_hist = pd.to_numeric(
-            hist_filtrado["facturacion_actual_anual"], errors="coerce"
-        ).fillna(0)
-        fact_proy_hist = pd.to_numeric(
-            hist_filtrado["facturacion_proyectada_anual"], errors="coerce"
-        ).fillna(0)
+    cantidad_simulaciones = len(hist)
 
-        if fact_actual_hist.sum() > 0:
-            fact_actual = fact_actual_hist.sum()
-            fact_proyectada = fact_proy_hist.sum()
-            impacto = fact_actual - fact_proyectada
+    recomendadas = 0
+    no_recomendadas = 0
 
-    troq_eval = len(hist_filtrado) if not hist_filtrado.empty else 0
-    altas = (
-        len(hist_filtrado[hist_filtrado["tipo_caso"] == "A"])
-        if not hist_filtrado.empty and "tipo_caso" in hist_filtrado.columns
-        else 0
-    )
-    bajas = (
-        len(hist_filtrado[hist_filtrado["tipo_caso"] == "B"])
-        if not hist_filtrado.empty and "tipo_caso" in hist_filtrado.columns
-        else 0
+    if (
+        not hist.empty
+        and "recomendacion" in hist.columns
+    ):
+
+        recomendadas = int(
+            hist["recomendacion"]
+            .fillna(False)
+            .astype(bool)
+            .sum()
+        )
+
+        no_recomendadas = (
+            cantidad_simulaciones
+            - recomendadas
+        )
+
+    fact_actual = 0
+    fact_proyectada = 0
+
+    if not hist.empty:
+
+        hist_ordenado = hist.copy()
+
+        if "fecha_corrida" in hist_ordenado.columns:
+
+            hist_ordenado[
+                "fecha_corrida"
+            ] = pd.to_datetime(
+                hist_ordenado[
+                    "fecha_corrida"
+                ],
+                errors="coerce",
+            )
+
+            hist_ordenado = (
+                hist_ordenado.sort_values(
+                    "fecha_corrida",
+                    ascending=False,
+                )
+            )
+
+        if not hist_ordenado.empty:
+
+            ultima = hist_ordenado.iloc[0]
+
+            fact_actual = float(
+                ultima.get(
+                    "facturacion_actual_anual",
+                    0,
+                )
+                or 0
+            )
+
+            fact_proyectada = float(
+                ultima.get(
+                    "facturacion_proyectada_anual",
+                    0,
+                )
+                or 0
+            )
+
+    impacto = (
+        fact_proyectada
+        - fact_actual
     )
 
     st.markdown(
         f"""
         <div class="metric-grid">
+
             <div class="metric-card">
-                <div class="metric-label">Facturación actual anual</div>
-                <div class="metric-value">{money(fact_actual)}</div>
+                <div class="metric-label">
+                    Facturación actual anual
+                </div>
+                <div class="metric-value">
+                    {money(fact_actual)}
+                </div>
             </div>
+
             <div class="metric-card">
-                <div class="metric-label">Facturación proyectada</div>
-                <div class="metric-value">{money(fact_proyectada)}</div>
+                <div class="metric-label">
+                    Facturación proyectada
+                </div>
+                <div class="metric-value">
+                    {money(fact_proyectada)}
+                </div>
             </div>
+
             <div class="metric-card">
-                <div class="metric-label">Impacto neto estimado</div>
-                <div class="metric-value green-value">▼ {money(abs(impacto))}</div>
+                <div class="metric-label">
+                    Impacto neto estimado
+                </div>
+                <div class="metric-value {'green-value' if impacto <= 0 else 'red-value'}">
+                    {money(impacto)}
+                </div>
             </div>
+
             <div class="metric-card">
-                <div class="metric-label">Troqueles evaluados</div>
-                <div class="metric-value">{troq_eval}</div>
-                <div class="metric-sub">{altas} altas · {bajas} bajas</div>
+                <div class="metric-label">
+                    Troqueles evaluados
+                </div>
+
+                <div class="metric-value">
+                    {cantidad_simulaciones}
+                </div>
+
+                <div class="metric-sub">
+                    {recomendadas} recomendados ·
+                    {no_recomendadas} no recomendados
+                </div>
+
             </div>
+
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    max_bar = max(fact_actual, fact_proyectada, 1)
-    actual_pct = min(100, fact_actual / max_bar * 100)
-    proy_pct = min(100, fact_proyectada / max_bar * 100)
+    # --------------------------------------------------------
+    # Comparación financiera
+    # --------------------------------------------------------
+
+    max_bar = max(
+        fact_actual,
+        fact_proyectada,
+        1,
+    )
+
+    actual_pct = min(
+        100,
+        fact_actual / max_bar * 100,
+    )
+
+    proyectada_pct = min(
+        100,
+        fact_proyectada / max_bar * 100,
+    )
 
     st.markdown(
         f"""
-        <div class="section-title">Facturación anual: actual vs. proyectada</div>
-        <div class="bar-row">
-            <div>Actual</div>
-            <div class="bar-bg">
-                <div class="bar-fill" style="width:{actual_pct}%; background:#d8d5cc;"></div>
-            </div>
-            <strong>{money(fact_actual)}</strong>
+        <div class="section-title">
+            Facturación anual: actual vs. proyectada
         </div>
+
         <div class="bar-row">
-            <div>Proyectada</div>
+
+            <div>Actual</div>
+
             <div class="bar-bg">
-                <div class="bar-fill" style="width:{proy_pct}%;"></div>
+                <div
+                    class="bar-fill"
+                    style="
+                        width:{actual_pct}%;
+                        background:#d8d5cc;
+                    ">
+                </div>
             </div>
-            <strong>{money(fact_proyectada)}</strong>
+
+            <strong>
+                {money(fact_actual)}
+            </strong>
+
+        </div>
+
+        <div class="bar-row">
+
+            <div>Proyectada</div>
+
+            <div class="bar-bg">
+
+                <div
+                    class="bar-fill"
+                    style="
+                        width:{proyectada_pct}%;
+                    ">
+                </div>
+
+            </div>
+
+            <strong>
+                {money(fact_proyectada)}
+            </strong>
+
         </div>
         """,
         unsafe_allow_html=True,
     )
 
+    # --------------------------------------------------------
+    # Historial reciente
+    # --------------------------------------------------------
+
     st.markdown(
-        '<div class="section-title">Recomendaciones recientes</div>',
+        '<div class="section-title">Evaluaciones recientes de incorporación</div>',
         unsafe_allow_html=True,
     )
 
     rows_html = ""
 
-    if not hist_filtrado.empty:
-        data = hist_filtrado.copy()
+    if not hist.empty:
+
+        data = hist.copy()
 
         if "fecha_corrida" in data.columns:
-            data = data.sort_values("fecha_corrida", ascending=False)
 
-        data = data.head(8)
+            data["fecha_corrida"] = (
+                pd.to_datetime(
+                    data["fecha_corrida"],
+                    errors="coerce",
+                )
+            )
+
+            data = data.sort_values(
+                "fecha_corrida",
+                ascending=False,
+            )
+
+        data = data.head(10)
 
         for _, r in data.iterrows():
-            codigo = r.get("codigo_troquel", "")
-            caso = "Alta" if r.get("tipo_caso") == "A" else "Baja"
-            reco = bool(r.get("recomendacion"))
-            badge = "Recomendado" if reco else "No recomendado"
-            badge_class = "badge-ok" if reco else "badge-no"
+
+            codigo = normalize_code(
+                r.get("codigo_troquel")
+            )
+
+            recomendacion = bool(
+                r.get("recomendacion")
+            )
+
+            badge = (
+                "Recomendado"
+                if recomendacion
+                else "No recomendado"
+            )
+
+            badge_class = (
+                "badge-ok"
+                if recomendacion
+                else "badge-no"
+            )
 
             monodroga = ""
-            banda = "-"
 
-            if not troqueles.empty and "codigo_troquel" in troqueles.columns:
-                tr = troqueles[troqueles["codigo_troquel"].astype(str) == str(codigo)]
-                if not tr.empty:
-                    monodroga = tr.iloc[0].get("monodroga", "")
+            # Buscar descripción en ALB vigente
+            candidato = svc.get_troquel(
+                codigo
+            )
 
-            fa = float(r.get("facturacion_actual_anual") or 0)
-            fp = float(r.get("facturacion_proyectada_anual") or 0)
+            if candidato:
+                monodroga = str(
+                    candidato.get(
+                        "monodro",
+                        "",
+                    )
+                    or ""
+                )
+
+            fa = float(
+                r.get(
+                    "facturacion_actual_anual",
+                    0,
+                )
+                or 0
+            )
+
+            fp = float(
+                r.get(
+                    "facturacion_proyectada_anual",
+                    0,
+                )
+                or 0
+            )
+
             imp = fp - fa
 
-            imp_class = "positive" if imp < 0 else "negative" if imp > 0 else "muted"
+            imp_class = (
+                "positive"
+                if imp < 0
+                else
+                "negative"
+                if imp > 0
+                else
+                "muted"
+            )
 
             rows_html += f"""
             <tr>
+
                 <td>{codigo}</td>
-                <td>{monodroga}</td>
-                <td><span class="badge badge-neutral">{caso}</span></td>
-                <td>{banda}</td>
-                <td><span class="badge {badge_class}">{badge}</span></td>
-                <td class="{imp_class}" style="text-align:right;">{money(imp)}</td>
+
+                <td>
+                    {monodroga}
+                </td>
+
+                <td>
+                    <span class="badge {badge_class}">
+                        {badge}
+                    </span>
+                </td>
+
+                <td
+                    class="{imp_class}"
+                    style="text-align:right;"
+                >
+                    {money(imp)}
+                </td>
+
             </tr>
             """
+
     else:
+
         rows_html = """
         <tr>
-            <td colspan="6" style="text-align:center; color:#999; padding:20px;">
-                No hay simulaciones para el filtro seleccionado.
+            <td
+                colspan="4"
+                style="
+                    text-align:center;
+                    color:#999;
+                    padding:20px;
+                "
+            >
+                Todavía no hay simulaciones realizadas.
             </td>
         </tr>
         """
@@ -489,266 +817,702 @@ if view == "panel":
     components.html(
         f"""
         <style>
+
         .reco-table {{
             width:100%;
             border-collapse:collapse;
-            font-family: Arial, sans-serif;
+            font-family:Arial, sans-serif;
             font-size:14px;
         }}
+
         .reco-table th {{
             background:#1f5b6b;
             color:white;
             padding:10px 13px;
             text-align:left;
         }}
+
         .reco-table td {{
             padding:10px 13px;
             border-bottom:1px solid #eeeae2;
             color:#333;
         }}
+
         .reco-table tr:nth-child(even) {{
             background:#f6f3ed;
         }}
+
         .badge {{
             display:inline-block;
             border-radius:999px;
-            padding:4px 24px;
+            padding:4px 18px;
             font-size:12px;
         }}
-        .badge-neutral {{
-            background:#ebe8df;
-            color:#6d665d;
-        }}
+
         .badge-ok {{
             background:#d9f1e9;
             color:#0e6d5e;
         }}
+
         .badge-no {{
             background:#f8e3db;
             color:#924126;
         }}
+
         .positive {{
             color:#08765f;
             font-weight:800;
         }}
+
         .negative {{
             color:#a33d2c;
             font-weight:800;
         }}
+
         .muted {{
             color:#99948b;
             font-weight:700;
         }}
-        .footer-note {{
-            color:#9d978d;
-            font-size:11px;
-            margin-top:16px;
-            font-family: Arial, sans-serif;
-        }}
+
         </style>
 
         <table class="reco-table">
+
             <thead>
+
                 <tr>
                     <th>Troquel</th>
                     <th>Monodroga</th>
-                    <th>Caso</th>
-                    <th>Banda</th>
                     <th>Recomendación</th>
-                    <th style="text-align:right;">Impacto anual</th>
+                    <th style="text-align:right;">
+                        Impacto anual
+                    </th>
                 </tr>
+
             </thead>
+
             <tbody>
                 {rows_html}
             </tbody>
-        </table>
 
-        <div class="footer-note">
-            Datos ilustrativos o calculados desde Supabase. Fuentes: ALB, Convenio APROSS OYTE, Liquidación.
-        </div>
+        </table>
         """,
-        height=360,
-        scrolling=False,
+        height=430,
+        scrolling=True,
     )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    if st.button("Nueva simulación", type="primary"):
-        st.session_state.view = "simular"
+    if st.button(
+        "Nueva simulación",
+        type="primary",
+    ):
+
+        st.session_state.view = (
+            "simular"
+        )
+
         st.rerun()
 
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    st.markdown(
+        "</div></div>",
+        unsafe_allow_html=True,
+    )
 
 
 # ============================================================
-# BLOQUE 09 — Vista Nueva Simulación
+# BLOQUE 09 — NUEVA SIMULACIÓN — CASO A
 # ============================================================
 
 else:
-    st.markdown('<div class="app-window">', unsafe_allow_html=True)
-    render_browser_header("simulador-convenio.aprossoyte.local/nueva-simulacion")
-    st.markdown('<div class="inner">', unsafe_allow_html=True)
 
-    if st.button("← Volver al panel"):
+    st.markdown(
+        '<div class="app-window">',
+        unsafe_allow_html=True,
+    )
+
+    render_browser_header(
+        "simulador-convenio.aprossoyte.local/nueva-simulacion"
+    )
+
+    st.markdown(
+        '<div class="inner">',
+        unsafe_allow_html=True,
+    )
+
+    if st.button(
+        "← Volver al panel"
+    ):
+
         st.session_state.view = "panel"
+
         st.rerun()
 
     st.markdown(
         """
-        <div class="kicker">Simulador de convenio</div>
-        <h1 class="main-title">Nueva simulación</h1>
+        <div class="kicker">
+            Simulador de convenio
+        </div>
+
+        <h1 class="main-title">
+            Nueva simulación — Alta de troquel
+        </h1>
         """,
         unsafe_allow_html=True,
     )
 
-    left, right = st.columns([1.15, 0.95])
+    # --------------------------------------------------------
+    # Lista de troqueles vigentes
+    # --------------------------------------------------------
+
+    if (
+        not svc.troqueles.empty
+        and "tronquel" in svc.troqueles.columns
+    ):
+
+        opciones = (
+            svc.troqueles[
+                "tronquel"
+            ]
+            .dropna()
+            .astype(str)
+            .unique()
+            .tolist()
+        )
+
+        opciones = sorted(
+            opciones
+        )
+
+    else:
+
+        opciones = []
+
+    left, right = st.columns(
+        [1.15, 0.95]
+    )
+
+    # ========================================================
+    # FORMULARIO
+    # ========================================================
 
     with left:
-        if not troqueles.empty and "codigo_troquel" in troqueles.columns:
-            codigos = troqueles["codigo_troquel"].astype(str).tolist()
-            codigo = st.selectbox("Código de troquel", codigos)
-        else:
-            codigo = st.text_input(
+
+        if opciones:
+
+            codigo = st.selectbox(
                 "Código de troquel",
-                placeholder="Ej: TRQ-10532, o buscar por monodroga",
+                opciones,
             )
 
-        tipo = st.radio(
-            "Tipo de análisis",
-            ["Alta", "Baja", "Detectar automáticamente"],
-            horizontal=True,
+        else:
+
+            codigo = st.text_input(
+                "Código de troquel"
+            )
+
+        months_window = st.slider(
+            "Vigencia máxima del precio en meses",
+            min_value=1,
+            max_value=12,
+            value=6,
         )
 
-        st.caption('"Detectar automáticamente" corre el Caso A o el Caso B según corresponda.')
+        ejecutar = st.button(
+            "Ejecutar simulación",
+            type="primary",
+        )
 
-        months_window = st.slider("Vigencia máxima de precio en meses", 1, 24, 6)
+    # ========================================================
+    # VALIDACIÓN PREVIA
+    # ========================================================
 
-        ejecutar = st.button("Ejecutar simulación", type="primary")
+    candidato = (
+        svc.get_troquel(codigo)
+        if codigo
+        else None
+    )
 
     with right:
-        monodroga = ""
-        potencia = ""
-        forma = ""
-        laboratorio = ""
-        pvp = 0
-        estado = ""
-        en_convenio = False
 
-        if codigo and not troqueles.empty and "codigo_troquel" in troqueles.columns:
-            row = troqueles[troqueles["codigo_troquel"].astype(str) == str(codigo)]
+        if candidato:
 
-            if not row.empty:
-                r = row.iloc[0]
-                monodroga = r.get("monodroga", "")
-                potencia = r.get("potencia", "")
-                forma = r.get("forma_farmacologica", "")
-                laboratorio = r.get("laboratorio", "")
-                estado = r.get("estado", "")
-                en_convenio = codigo in convenio_codes
-
-                try:
-                    pvp = float(r.get("pvp", 0) or 0)
-                except Exception:
-                    pvp = 0
-
-        st.markdown(
-            f"""
-            <div class="validation-card">
-                <div class="validation-title">Validación previa</div>
-                <div><span class="check">✓</span> Presentación {'activa' if estado == 'activa' else estado or 'sin dato'}</div>
-                <div style="margin-top:8px;"><span class="check">✓</span> Vigencia de precio: ventana {months_window} meses</div>
-                <hr style="border:none; border-top:1px solid #ddd6c9; margin:14px 0;">
-                <div class="validation-row"><span>Monodroga</span><strong>{monodroga or '-'}</strong></div>
-                <div class="validation-row"><span>Potencia/Forma</span><strong>{potencia or '-'} / {forma or '-'}</strong></div>
-                <div class="validation-row"><span>Laboratorio</span><strong>{laboratorio or '-'}</strong></div>
-                <div class="validation-row"><span>PVP vigente</span><strong>{money(pvp)}</strong></div>
-                <div class="validation-row"><span>En convenio</span><strong>{'Sí' if en_convenio else 'No'}</strong></div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-
-    if ejecutar and codigo:
-        try:
-            if tipo == "Alta":
-                result = svc.simulate_alta(codigo, months_window)
-            elif tipo == "Baja":
-                result = svc.simulate_baja(codigo, months_window)
-            else:
-                result = (
-                    svc.simulate_baja(codigo, months_window)
-                    if codigo in convenio_codes
-                    else svc.simulate_alta(codigo, months_window)
+            monodroga = (
+                candidato.get(
+                    "monodro",
+                    "",
                 )
-
-            try:
-                saved = repo.save_result(result.__dict__)
-                saved_msg = f"Simulación guardada: {saved.get('id_simulacion')}"
-            except Exception as e:
-                saved_msg = f"La simulación se calculó, pero no pudo guardarse: {e}"
-
-            impacto_resultado = (
-                result.facturacion_proyectada_anual - result.facturacion_actual_anual
+                or ""
             )
 
-            reco_badge = (
-                '<span class="badge badge-ok">Recomendado</span>'
-                if result.recomendacion
-                else '<span class="badge badge-no">No recomendado</span>'
+            forma = (
+                candidato.get(
+                    "formas",
+                    "",
+                )
+                or ""
+            )
+
+            potencia = (
+                candidato.get(
+                    "potencia",
+                    "",
+                )
+                or ""
+            )
+
+            unidad = (
+                candidato.get(
+                    "unidad_potencia",
+                    "",
+                )
+                or ""
+            )
+
+            laboratorio = (
+                candidato.get(
+                    "desc_laboratorio",
+                    "",
+                )
+                or ""
+            )
+
+            pvp = (
+                candidato.get(
+                    "precio",
+                    0,
+                )
+                or 0
+            )
+
+            fecha = candidato.get(
+                "fecha"
+            )
+
+            baja = candidato.get(
+                "baja"
+            )
+
+            en_convenio = (
+                svc.is_in_convenio(
+                    codigo
+                )
+            )
+
+            banda_actual = (
+                svc.current_band(
+                    candidato
+                )
+            )
+
+            banda_hipotetica = (
+                svc.hypothetical_band(
+                    candidato
+                )
+            )
+
+            segundo_pvp = (
+                svc.second_highest_price(
+                    candidato
+                )
+            )
+
+            mejora_banda = (
+                banda_hipotetica.get(
+                    "porcentaje_descuento",
+                    0,
+                )
+                >
+                banda_actual.get(
+                    "porcentaje_descuento",
+                    0,
+                )
+            )
+
+            cumple_pvp = (
+                segundo_pvp is not None
+                and float(pvp)
+                <= float(segundo_pvp)
+            )
+
+            try:
+                baja_num = int(
+                    float(baja)
+                )
+            except Exception:
+                baja_num = None
+
+            activo = (
+                baja_num == 0
             )
 
             st.markdown(
                 f"""
-                <div class="result-box">
-                    <h3 style="margin-top:0;">Resultado de simulación</h3>
-                    <p>{reco_badge}</p>
-                    <p><strong>Motivo:</strong> {result.motivo}</p>
-                    <div class="metric-grid" style="grid-template-columns: repeat(3, 1fr); margin-top:20px;">
-                        <div class="metric-card">
-                            <div class="metric-label">Facturación actual anual</div>
-                            <div class="metric-value">{money(result.facturacion_actual_anual)}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Facturación proyectada anual</div>
-                            <div class="metric-value">{money(result.facturacion_proyectada_anual)}</div>
-                        </div>
-                        <div class="metric-card">
-                            <div class="metric-label">Impacto neto</div>
-                            <div class="metric-value {'green-value' if impacto_resultado < 0 else ''}">{money(impacto_resultado)}</div>
-                        </div>
+                <div class="validation-card">
+
+                    <div class="validation-title">
+                        Validación previa
                     </div>
-                    <p class="footer-note">{saved_msg}</p>
+
+                    <div class="validation-row">
+                        <span>Presentación activa</span>
+                        <strong class="{'check-ok' if activo else 'check-no'}">
+                            {'Sí' if activo else 'No'}
+                        </strong>
+                    </div>
+
+                    <div class="validation-row">
+                        <span>Fecha vigencia PVP</span>
+                        <strong>
+                            {fecha if fecha else '-'}
+                        </strong>
+                    </div>
+
+                    <div class="validation-row">
+                        <span>Actualmente en convenio</span>
+                        <strong class="{'check-no' if en_convenio else 'check-ok'}">
+                            {'Sí' if en_convenio else 'No'}
+                        </strong>
+                    </div>
+
+                    <div class="validation-row">
+                        <span>Monodroga</span>
+                        <strong>{monodroga}</strong>
+                    </div>
+
+                    <div class="validation-row">
+                        <span>Presentación equivalente</span>
+                        <strong>
+                            {forma} · {potencia} {unidad}
+                        </strong>
+                    </div>
+
+                    <div class="validation-row">
+                        <span>Laboratorio</span>
+                        <strong>{laboratorio}</strong>
+                    </div>
+
+                    <div class="validation-row">
+                        <span>PVP candidato</span>
+                        <strong>{money(pvp)}</strong>
+                    </div>
+
+                    <div class="validation-row">
+                        <span>Banda actual</span>
+                        <strong>
+                            {percentage(
+                                banda_actual.get(
+                                    "porcentaje_descuento",
+                                    0
+                                )
+                            )}
+                            ·
+                            {banda_actual.get(
+                                "cantidad_laboratorios",
+                                0
+                            )}
+                            lab.
+                        </strong>
+                    </div>
+
+                    <div class="validation-row">
+                        <span>Banda hipotética</span>
+                        <strong>
+                            {percentage(
+                                banda_hipotetica.get(
+                                    "porcentaje_descuento",
+                                    0
+                                )
+                            )}
+                            ·
+                            {banda_hipotetica.get(
+                                "cantidad_laboratorios",
+                                0
+                            )}
+                            lab.
+                        </strong>
+                    </div>
+
+                    <div class="validation-row">
+                        <span>Mejora de banda</span>
+                        <strong class="{'check-ok' if mejora_banda else 'check-no'}">
+                            {'Sí' if mejora_banda else 'No'}
+                        </strong>
+                    </div>
+
+                    <div class="validation-row">
+                        <span>Segundo PVP más alto</span>
+                        <strong>
+                            {money(segundo_pvp) if segundo_pvp is not None else '-'}
+                        </strong>
+                    </div>
+
+                    <div class="validation-row">
+                        <span>Cumple criterio de PVP</span>
+                        <strong class="{'check-ok' if cumple_pvp else 'check-no'}">
+                            {'Sí' if cumple_pvp else 'No'}
+                        </strong>
+                    </div>
+
                 </div>
                 """,
                 unsafe_allow_html=True,
             )
 
-            with st.expander("Ver detalle de consumo"):
-                st.json(result.detalle_consumo)
+        else:
+
+            st.info(
+                "Seleccione un troquel."
+            )
+
+    # ========================================================
+    # EJECUCIÓN
+    # ========================================================
+
+    if ejecutar and codigo:
+
+        try:
+
+            result = svc.simulate_alta(
+                codigo,
+                months_window,
+            )
+
+            # ------------------------------------------------
+            # Persistir resultado
+            # ------------------------------------------------
+
+            try:
+
+                saved = repo.save_result(
+                    result.__dict__
+                )
+
+                saved_msg = (
+                    "Simulación guardada correctamente."
+                )
+
+            except Exception as e:
+
+                saved_msg = (
+                    "La simulación fue calculada, "
+                    f"pero no pudo guardarse: {e}"
+                )
+
+            # ------------------------------------------------
+            # Resultado
+            # ------------------------------------------------
+
+            impacto = (
+                result.facturacion_proyectada_anual
+                - result.facturacion_actual_anual
+            )
+
+            estado = (
+                result.detalle_consumo.get(
+                    "estado",
+                    "",
+                )
+                if result.detalle_consumo
+                else ""
+            )
+
+            if result.recomendacion:
+
+                badge_resultado = (
+                    '<span class="result-ok">'
+                    'RECOMENDAR INCORPORACIÓN'
+                    '</span>'
+                )
+
+            elif estado == "NO_ELEGIBLE":
+
+                badge_resultado = (
+                    '<span class="result-no">'
+                    'PRESENTACIÓN NO ELEGIBLE'
+                    '</span>'
+                )
+
+            elif estado == "YA_CONVENIDO":
+
+                badge_resultado = (
+                    '<span class="result-no">'
+                    'TROQUEL YA CONVENIDO'
+                    '</span>'
+                )
+
+            else:
+
+                badge_resultado = (
+                    '<span class="result-no">'
+                    'NO RECOMENDAR INCORPORACIÓN'
+                    '</span>'
+                )
+
+            st.markdown(
+                f"""
+                <div class="result-box">
+
+                    <h3>
+                        Resultado de simulación
+                    </h3>
+
+                    <p>
+                        {badge_resultado}
+                    </p>
+
+                    <p>
+                        <strong>Motivo:</strong>
+                        {result.motivo}
+                    </p>
+
+                    <div
+                        class="metric-grid"
+                        style="
+                            grid-template-columns:
+                            repeat(3,1fr);
+                        "
+                    >
+
+                        <div class="metric-card">
+
+                            <div class="metric-label">
+                                Facturación actual anual
+                            </div>
+
+                            <div class="metric-value">
+                                {money(
+                                    result.facturacion_actual_anual
+                                )}
+                            </div>
+
+                        </div>
+
+                        <div class="metric-card">
+
+                            <div class="metric-label">
+                                Facturación proyectada anual
+                            </div>
+
+                            <div class="metric-value">
+                                {money(
+                                    result.facturacion_proyectada_anual
+                                )}
+                            </div>
+
+                        </div>
+
+                        <div class="metric-card">
+
+                            <div class="metric-label">
+                                Impacto anual
+                            </div>
+
+                            <div class="metric-value {'green-value' if impacto <= 0 else 'red-value'}">
+                                {money(impacto)}
+                            </div>
+
+                        </div>
+
+                    </div>
+
+                    <p class="footer-note">
+                        {saved_msg}
+                    </p>
+
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+
+            # ------------------------------------------------
+            # Información de consumo
+            # ------------------------------------------------
+
+            if result.detalle_consumo:
+
+                detalle = (
+                    result.detalle_consumo
+                )
+
+                st.markdown(
+                    '<div class="section-title">Información de consumo</div>',
+                    unsafe_allow_html=True,
+                )
+
+                c1, c2, c3, c4 = st.columns(4)
+
+                c1.metric(
+                    "Afiliados monodroga",
+                    detalle.get(
+                        "afiliados_monodroga",
+                        0,
+                    ),
+                )
+
+                c2.metric(
+                    "Afiliados misma potencia",
+                    detalle.get(
+                        "afiliados_misma_potencia",
+                        0,
+                    ),
+                )
+
+                c3.metric(
+                    "Cajas mensuales / afiliado",
+                    f"{detalle.get(
+                        'promedio_mensual_cajas_por_afiliado',
+                        0
+                    ):,.2f}",
+                )
+
+                c4.metric(
+                    "Tasa uso potencia",
+                    f"{detalle.get(
+                        'tasa_uso_potencia',
+                        0
+                    ):.1%}",
+                )
+
+                with st.expander(
+                    "Ver detalle completo del cálculo"
+                ):
+
+                    st.json(
+                        detalle
+                    )
 
         except Exception as e:
-            st.error(f"No se pudo ejecutar la simulación: {e}")
+
+            st.error(
+                f"No se pudo ejecutar la simulación: {e}"
+            )
+
     else:
+
         st.markdown(
             """
             <div class="result-placeholder">
+
                 <div>
-                    <strong>El resultado de la simulación aparecerá aquí</strong><br>
-                    Incluye recomendación, motivo, info de consumo y simulación de facturación.
+
+                    <strong>
+                        El resultado de la simulación aparecerá aquí
+                    </strong>
+
+                    <br>
+
+                    Se evaluará elegibilidad, banda,
+                    PVP, consumo e impacto económico.
+
                 </div>
+
             </div>
             """,
             unsafe_allow_html=True,
         )
 
-    with st.expander("Datos cargados"):
-        st.write("Troqueles")
-        st.dataframe(troqueles, use_container_width=True)
-
-        st.write("Convenio OYTE")
-        st.dataframe(convenio, use_container_width=True)
-
-        st.write("Liquidaciones")
-        st.dataframe(liquidaciones, use_container_width=True)
-
-    st.markdown("</div></div>", unsafe_allow_html=True)
+    st.markdown(
+        "</div></div>",
+        unsafe_allow_html=True,
+    )
