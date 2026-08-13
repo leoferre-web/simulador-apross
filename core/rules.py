@@ -706,7 +706,7 @@ def consumption_block(
 
 
 # ============================================================
-# BLOQUE 07 — Facturación anual
+# BLOQUE 07 — Facturación anual y simulación económica
 # ============================================================
 
 def annual_billing(
@@ -714,35 +714,24 @@ def annual_billing(
     convenio_codes: list[str],
 ) -> float:
     """
-    Calcula facturación anualizada.
-
-    Fórmula:
+    Calcula la facturación anual actual de los troqueles
+    indicados utilizando el precio convenido histórico:
 
         Unidades × PConv Fecha Remito
 
-    Se utiliza únicamente consumo de troqueles
-    pertenecientes al universo indicado.
+    El resultado se anualiza según la cantidad de períodos
+    disponibles en Liquidaciones.
     """
 
     if liq_df.empty:
         return 0.0
 
-    required = {
-        "troquel",
-        "periodo",
-        "unidades",
-        "pconv_fecha_remito",
-    }
-
-    if not required.issubset(
-        liq_df.columns
+    if (
+        "troquel" not in liq_df.columns
+        or "unidades" not in liq_df.columns
+        or "pconv_fecha_remito" not in liq_df.columns
     ):
         return 0.0
-
-    convenio_codes = set(
-        str(c)
-        for c in convenio_codes
-    )
 
     df = liq_df.copy()
 
@@ -751,10 +740,14 @@ def annual_billing(
         .astype(str)
     )
 
+    codigos = set(
+        str(c)
+        for c in convenio_codes
+    )
+
     df = df[
-        df["_troquel_str"]
-        .isin(
-            convenio_codes
+        df["_troquel_str"].isin(
+            codigos
         )
     ].copy()
 
@@ -775,24 +768,486 @@ def annual_billing(
         errors="coerce",
     ).fillna(0)
 
-    df["importe"] = (
+    df["importe_actual"] = (
         df["unidades"]
-        * df[
-            "pconv_fecha_remito"
-        ]
+        *
+        df["pconv_fecha_remito"]
     )
 
-    meses = max(
-        df["periodo"]
-        .dropna()
-        .nunique(),
-        1,
-    )
+    if "periodo" in df.columns:
 
-    return (
+        meses = max(
+            df["periodo"]
+            .dropna()
+            .nunique(),
+            1,
+        )
+
+    else:
+
+        meses = 1
+
+    facturacion_anual = (
         float(
-            df["importe"].sum()
+            df[
+                "importe_actual"
+            ].sum()
         )
         / meses
         * 12
     )
+
+    return float(
+        facturacion_anual
+    )
+
+
+# ============================================================
+# BLOQUE 07.1 — Simulación económica por cambio de banda
+# ============================================================
+
+def projected_billing_by_band(
+    liq_df: pd.DataFrame,
+    troqueles_df: pd.DataFrame,
+    troquel_candidato: dict,
+    banda_actual: float,
+    banda_proyectada: float,
+) -> dict:
+    """
+    Simula el impacto económico de incorporar el troquel
+    candidato cuando dicha incorporación modifica la banda.
+
+    PRESENTACIÓN EQUIVALENTE:
+
+        cod_monodroga
+        + formas
+        + potencia
+        + unidad_potencia
+
+    ESCENARIO ACTUAL:
+
+        Unidades × PConv Fecha Remito
+
+    ESCENARIO PROYECTADO:
+
+        Unidades × PVP Fecha Remito
+                 × (1 - banda proyectada)
+
+    Se mantiene exactamente el mismo consumo histórico.
+
+    No se supone consumo para el troquel candidato.
+    El efecto económico proviene del cambio de banda sobre
+    el consumo histórico de la presentación equivalente.
+    """
+
+    resultado_vacio = {
+
+        "facturacion_actual_grupo_anual":
+            0.0,
+
+        "facturacion_proyectada_grupo_anual":
+            0.0,
+
+        "impacto_grupo_anual":
+            0.0,
+
+        "ahorro_grupo_anual":
+            0.0,
+
+        "ahorro_porcentual":
+            0.0,
+
+        "cantidad_liquidaciones":
+            0,
+
+        "unidades_historicas":
+            0.0,
+
+        "meses_observados":
+            0,
+
+        "banda_actual":
+            float(
+                banda_actual or 0
+            ),
+
+        "banda_proyectada":
+            float(
+                banda_proyectada or 0
+            ),
+
+        "troqueles_afectados":
+            [],
+    }
+
+    # --------------------------------------------------------
+    # 1. Validaciones generales
+    # --------------------------------------------------------
+
+    if (
+        liq_df.empty
+        or troqueles_df.empty
+        or not troquel_candidato
+    ):
+        return resultado_vacio
+
+    required_alb = {
+        "tronquel",
+        "cod_monodroga",
+        "formas",
+        "potencia",
+        "unidad_potencia",
+    }
+
+    required_liq = {
+        "troquel",
+        "unidades",
+        "pvp_fecha_remito",
+        "pconv_fecha_remito",
+    }
+
+    if not required_alb.issubset(
+        troqueles_df.columns
+    ):
+        return resultado_vacio
+
+    if not required_liq.issubset(
+        liq_df.columns
+    ):
+        return resultado_vacio
+
+    # --------------------------------------------------------
+    # 2. Obtener presentación equivalente del candidato
+    # --------------------------------------------------------
+
+    cod_monodroga = (
+        troquel_candidato.get(
+            "cod_monodroga"
+        )
+    )
+
+    forma = str(
+        troquel_candidato.get(
+            "formas",
+            "",
+        )
+        or ""
+    )
+
+    potencia = str(
+        troquel_candidato.get(
+            "potencia",
+            "",
+        )
+        or ""
+    )
+
+    unidad_potencia = str(
+        troquel_candidato.get(
+            "unidad_potencia",
+            "",
+        )
+        or ""
+    )
+
+    # --------------------------------------------------------
+    # 3. Buscar troqueles de la presentación equivalente
+    # --------------------------------------------------------
+
+    grupo = troqueles_df[
+        (
+            troqueles_df[
+                "cod_monodroga"
+            ].astype(str)
+            == str(
+                cod_monodroga
+            )
+        )
+        &
+        (
+            troqueles_df[
+                "formas"
+            ]
+            .fillna("")
+            .astype(str)
+            == forma
+        )
+        &
+        (
+            troqueles_df[
+                "potencia"
+            ]
+            .fillna("")
+            .astype(str)
+            == potencia
+        )
+        &
+        (
+            troqueles_df[
+                "unidad_potencia"
+            ]
+            .fillna("")
+            .astype(str)
+            == unidad_potencia
+        )
+    ].copy()
+
+    if grupo.empty:
+        return resultado_vacio
+
+    codigos_grupo = (
+        grupo["tronquel"]
+        .dropna()
+        .astype(str)
+        .unique()
+        .tolist()
+    )
+
+    # --------------------------------------------------------
+    # 4. Obtener liquidaciones históricas del grupo
+    # --------------------------------------------------------
+
+    liquidaciones = (
+        liq_df.copy()
+    )
+
+    liquidaciones[
+        "_troquel_str"
+    ] = (
+        liquidaciones[
+            "troquel"
+        ]
+        .astype(str)
+    )
+
+    liquidaciones = liquidaciones[
+        liquidaciones[
+            "_troquel_str"
+        ].isin(
+            codigos_grupo
+        )
+    ].copy()
+
+    if liquidaciones.empty:
+        return resultado_vacio
+
+    # --------------------------------------------------------
+    # 5. Normalizar campos económicos
+    # --------------------------------------------------------
+
+    liquidaciones[
+        "unidades"
+    ] = pd.to_numeric(
+        liquidaciones[
+            "unidades"
+        ],
+        errors="coerce",
+    ).fillna(0)
+
+    liquidaciones[
+        "pvp_fecha_remito"
+    ] = pd.to_numeric(
+        liquidaciones[
+            "pvp_fecha_remito"
+        ],
+        errors="coerce",
+    ).fillna(0)
+
+    liquidaciones[
+        "pconv_fecha_remito"
+    ] = pd.to_numeric(
+        liquidaciones[
+            "pconv_fecha_remito"
+        ],
+        errors="coerce",
+    ).fillna(0)
+
+    # --------------------------------------------------------
+    # 6. Escenario actual
+    #
+    # Unidades × precio convenido histórico
+    # --------------------------------------------------------
+
+    liquidaciones[
+        "importe_actual"
+    ] = (
+        liquidaciones[
+            "unidades"
+        ]
+        *
+        liquidaciones[
+            "pconv_fecha_remito"
+        ]
+    )
+
+    # --------------------------------------------------------
+    # 7. Escenario proyectado
+    #
+    # PVP histórico × (1 - nueva banda)
+    # --------------------------------------------------------
+
+    liquidaciones[
+        "precio_proyectado"
+    ] = (
+        liquidaciones[
+            "pvp_fecha_remito"
+        ]
+        *
+        (
+            1
+            - float(
+                banda_proyectada
+                or 0
+            )
+        )
+    )
+
+    liquidaciones[
+        "importe_proyectado"
+    ] = (
+        liquidaciones[
+            "unidades"
+        ]
+        *
+        liquidaciones[
+            "precio_proyectado"
+        ]
+    )
+
+    # --------------------------------------------------------
+    # 8. Determinar meses observados
+    # --------------------------------------------------------
+
+    if "periodo" in liquidaciones.columns:
+
+        meses = max(
+            liquidaciones[
+                "periodo"
+            ]
+            .dropna()
+            .nunique(),
+            1,
+        )
+
+    else:
+
+        meses = 1
+
+    # --------------------------------------------------------
+    # 9. Anualizar escenario actual
+    # --------------------------------------------------------
+
+    actual_anual = (
+        float(
+            liquidaciones[
+                "importe_actual"
+            ].sum()
+        )
+        / meses
+        * 12
+    )
+
+    # --------------------------------------------------------
+    # 10. Anualizar escenario proyectado
+    # --------------------------------------------------------
+
+    proyectado_anual = (
+        float(
+            liquidaciones[
+                "importe_proyectado"
+            ].sum()
+        )
+        / meses
+        * 12
+    )
+
+    # --------------------------------------------------------
+    # 11. Calcular impacto económico
+    # --------------------------------------------------------
+
+    impacto = (
+        proyectado_anual
+        - actual_anual
+    )
+
+    ahorro = (
+        actual_anual
+        - proyectado_anual
+    )
+
+    if actual_anual > 0:
+
+        ahorro_porcentual = (
+            ahorro
+            / actual_anual
+        )
+
+    else:
+
+        ahorro_porcentual = 0.0
+
+    # --------------------------------------------------------
+    # 12. Resultado
+    # --------------------------------------------------------
+
+    return {
+
+        "facturacion_actual_grupo_anual":
+            float(
+                actual_anual
+            ),
+
+        "facturacion_proyectada_grupo_anual":
+            float(
+                proyectado_anual
+            ),
+
+        "impacto_grupo_anual":
+            float(
+                impacto
+            ),
+
+        "ahorro_grupo_anual":
+            float(
+                ahorro
+            ),
+
+        "ahorro_porcentual":
+            float(
+                ahorro_porcentual
+            ),
+
+        "cantidad_liquidaciones":
+            int(
+                len(
+                    liquidaciones
+                )
+            ),
+
+        "unidades_historicas":
+            float(
+                liquidaciones[
+                    "unidades"
+                ].sum()
+            ),
+
+        "meses_observados":
+            int(
+                meses
+            ),
+
+        "banda_actual":
+            float(
+                banda_actual
+                or 0
+            ),
+
+        "banda_proyectada":
+            float(
+                banda_proyectada
+                or 0
+            ),
+
+        "troqueles_afectados":
+            codigos_grupo,
+    }
