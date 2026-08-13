@@ -11,6 +11,7 @@ from core.rules import (
     evaluate_case_a,
     consumption_block,
     annual_billing,
+    projected_billing_by_band,
 )
 
 
@@ -176,7 +177,7 @@ class SimulationService:
         troquel: dict,
     ) -> pd.DataFrame:
         """
-        Presentación equivalente confirmada:
+        Presentación equivalente:
 
         cod_monodroga
         + formas
@@ -349,8 +350,6 @@ class SimulationService:
             == cantidad_laboratorios
         ]
 
-        # Si supera el máximo disponible,
-        # usamos la última banda definida.
         if fila.empty:
 
             max_labs = df[
@@ -501,14 +500,13 @@ class SimulationService:
         troquel: dict,
     ) -> pd.DataFrame:
         """
-        Universo utilizado para calcular el segundo PVP:
+        Universo del segundo PVP:
 
-        1. misma cod_monodroga que el candidato;
-        2. solamente troqueles que figuran en Convenio OYTE.
+        - misma cod_monodroga;
+        - solamente troqueles conveniados.
 
         ALB aporta el PVP vigente.
-        Convenio OYTE define qué productos forman parte
-        del universo de comparación.
+        Convenio define cuáles participan.
         """
 
         if (
@@ -530,7 +528,7 @@ class SimulationService:
             self.active_convenio_codes()
         )
 
-        universo = self.troqueles[
+        return self.troqueles[
             (
                 self.troqueles[
                     "cod_monodroga"
@@ -543,13 +541,9 @@ class SimulationService:
                     "tronquel"
                 ]
                 .astype(str)
-                .isin(
-                    convenio_codes
-                )
+                .isin(convenio_codes)
             )
         ].copy()
-
-        return universo
 
 
 # ============================================================
@@ -560,19 +554,6 @@ class SimulationService:
         self,
         troquel: dict,
     ) -> float | None:
-        """
-        Obtiene el segundo PVP más alto entre los
-        productos actualmente conveniados de la misma
-        monodroga.
-
-        Los PVP provienen del ALB vigente.
-
-        Si existe un solo PVP conveniado válido,
-        utiliza ese valor como referencia.
-
-        Si no existen PVP válidos,
-        devuelve None.
-        """
 
         universo = (
             self.monodroga_universe(
@@ -592,7 +573,6 @@ class SimulationService:
             errors="coerce",
         ).dropna()
 
-        # Descartar precios nulos, negativos o cero.
         valores = valores[
             valores > 0
         ]
@@ -823,14 +803,14 @@ class SimulationService:
         )
 
         # ----------------------------------------------------
-        # 10. Facturación actual
+        # 10. Facturación actual total
         # ----------------------------------------------------
 
         current_codes = (
             self.active_convenio_codes()
         )
 
-        facturacion_actual = (
+        facturacion_actual_total = (
             annual_billing(
                 self.liquidaciones,
                 current_codes,
@@ -838,33 +818,114 @@ class SimulationService:
         )
 
         # ----------------------------------------------------
-        # 11. Escenario proyectado
+        # 11. Simulación económica del grupo afectado
+        # ----------------------------------------------------
+
+        simulacion_economica = (
+            projected_billing_by_band(
+                liq_df=self.liquidaciones,
+                troqueles_df=self.troqueles,
+                troquel_candidato=troquel,
+                banda_actual=rule_result.banda_actual,
+                banda_proyectada=rule_result.banda_hipotetica,
+            )
+        )
+
+        facturacion_actual_grupo = float(
+            simulacion_economica.get(
+                "facturacion_actual_grupo_anual",
+                0,
+            )
+            or 0
+        )
+
+        facturacion_proyectada_grupo = float(
+            simulacion_economica.get(
+                "facturacion_proyectada_grupo_anual",
+                0,
+            )
+            or 0
+        )
+
+        # ----------------------------------------------------
+        # 11.1 Escenario proyectado total
         # ----------------------------------------------------
 
         if rule_result.recomendacion:
 
-            projected_codes = list(
-                set(
-                    current_codes
-                    + [
-                        str(
-                            codigo_troquel
-                        )
-                    ]
-                )
+            facturacion_proyectada_total = (
+                facturacion_actual_total
+                - facturacion_actual_grupo
+                + facturacion_proyectada_grupo
             )
 
         else:
 
-            projected_codes = (
-                current_codes
+            facturacion_proyectada_total = (
+                facturacion_actual_total
             )
 
-        facturacion_proyectada = (
-            annual_billing(
-                self.liquidaciones,
-                projected_codes,
-            )
+        # ----------------------------------------------------
+        # 11.2 Detalle económico
+        # ----------------------------------------------------
+
+        detalle_consumo.update(
+            {
+
+                "facturacion_actual_grupo_anual":
+                    simulacion_economica.get(
+                        "facturacion_actual_grupo_anual",
+                        0,
+                    ),
+
+                "facturacion_proyectada_grupo_anual":
+                    simulacion_economica.get(
+                        "facturacion_proyectada_grupo_anual",
+                        0,
+                    ),
+
+                "impacto_grupo_anual":
+                    simulacion_economica.get(
+                        "impacto_grupo_anual",
+                        0,
+                    ),
+
+                "ahorro_grupo_anual":
+                    simulacion_economica.get(
+                        "ahorro_grupo_anual",
+                        0,
+                    ),
+
+                "ahorro_porcentual":
+                    simulacion_economica.get(
+                        "ahorro_porcentual",
+                        0,
+                    ),
+
+                "cantidad_liquidaciones_afectadas":
+                    simulacion_economica.get(
+                        "cantidad_liquidaciones",
+                        0,
+                    ),
+
+                "unidades_historicas_afectadas":
+                    simulacion_economica.get(
+                        "unidades_historicas",
+                        0,
+                    ),
+
+                "meses_observados":
+                    simulacion_economica.get(
+                        "meses_observados",
+                        0,
+                    ),
+
+                "troqueles_afectados":
+                    simulacion_economica.get(
+                        "troqueles_afectados",
+                        [],
+                    ),
+            }
         )
 
         # ----------------------------------------------------
@@ -877,17 +938,16 @@ class SimulationService:
                 codigo_troquel
             ),
             recomendacion=bool(
-                rule_result
-                .recomendacion
+                rule_result.recomendacion
             ),
             motivo=(
                 rule_result.motivo
             ),
             facturacion_actual_anual=(
-                facturacion_actual
+                facturacion_actual_total
             ),
             facturacion_proyectada_anual=(
-                facturacion_proyectada
+                facturacion_proyectada_total
             ),
             detalle_consumo=(
                 detalle_consumo
