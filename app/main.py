@@ -3,7 +3,6 @@
 # ============================================================
 
 import sys
-import textwrap
 from pathlib import Path
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
@@ -18,7 +17,7 @@ from core.rules import is_eligible
 
 
 # ============================================================
-# BLOQUE 02 — Configuración de página
+# BLOQUE 02 — Configuración
 # ============================================================
 
 st.set_page_config(
@@ -28,23 +27,28 @@ st.set_page_config(
 
 
 # ============================================================
-# BLOQUE 03 — Función segura para renderizar HTML
+# BLOQUE 03 — Render HTML seguro
 # ============================================================
 
 def html_block(html: str):
     """
-    Elimina la indentación del HTML antes de enviarlo a
-    Streamlit. Evita que Markdown interprete el HTML como
-    bloque de código.
+    Elimina la sangría inicial de cada línea para evitar
+    que Markdown interprete HTML anidado como código.
     """
+
+    clean_html = "\n".join(
+        line.lstrip()
+        for line in html.splitlines()
+    )
+
     st.markdown(
-        textwrap.dedent(html),
+        clean_html,
         unsafe_allow_html=True,
     )
 
 
 # ============================================================
-# BLOQUE 04 — Estilos CSS
+# BLOQUE 04 — CSS
 # ============================================================
 
 html_block("""
@@ -101,7 +105,7 @@ div[data-testid="stAppViewContainer"] {
     border: 1px solid #ddd8ce;
     border-radius: 999px;
     padding: 5px 80px;
-    color: #999;
+    color: #999999;
     font-size: 11px;
 }
 
@@ -293,7 +297,7 @@ div[data-testid="stMetric"] {
     padding: 14px;
 }
 
-@media(max-width: 850px) {
+@media(max-width:850px) {
 
     .metric-grid {
         grid-template-columns: repeat(2, 1fr);
@@ -357,24 +361,21 @@ def render_browser_header(
     html_block(
         f"""
         <div class="top-bar">
-
             <div class="dots">
                 <span class="dot red"></span>
                 <span class="dot yellow"></span>
                 <span class="dot green"></span>
             </div>
-
             <div class="url-pill">
                 {path}
             </div>
-
         </div>
         """
     )
 
 
 # ============================================================
-# BLOQUE 06 — Carga de datos desde Supabase
+# BLOQUE 06 — Carga de datos
 # ============================================================
 
 @st.cache_data(ttl=300)
@@ -461,7 +462,6 @@ if view == "panel":
         <div class="kicker">
             Simulador de convenio
         </div>
-
         <h1 class="main-title">
             APROSS OYTE — Panel financiero
         </h1>
@@ -469,7 +469,7 @@ if view == "panel":
     )
 
     # --------------------------------------------------------
-    # Historial de simulaciones
+    # Historial
     # --------------------------------------------------------
 
     try:
@@ -483,7 +483,6 @@ if view == "panel":
 
         hist = pd.DataFrame()
 
-    # Solo Caso A
     if (
         not hist.empty
         and "tipo_caso" in hist.columns
@@ -494,7 +493,7 @@ if view == "panel":
         ].copy()
 
     # --------------------------------------------------------
-    # Métricas
+    # Indicadores
     # --------------------------------------------------------
 
     cantidad_simulaciones = len(hist)
@@ -522,8 +521,6 @@ if view == "panel":
     fact_actual = 0.0
     fact_proyectada = 0.0
 
-    # Tomamos la simulación más reciente.
-    # No sumamos todo el historial.
     if not hist.empty:
 
         hist_ordenado = hist.copy()
@@ -570,69 +567,51 @@ if view == "panel":
     html_block(
         f"""
         <div class="metric-grid">
-
             <div class="metric-card">
-
                 <div class="metric-label">
                     Facturación actual anual
                 </div>
-
                 <div class="metric-value">
                     {money(fact_actual)}
                 </div>
-
             </div>
 
-
             <div class="metric-card">
-
                 <div class="metric-label">
                     Facturación proyectada
                 </div>
-
                 <div class="metric-value">
                     {money(fact_proyectada)}
                 </div>
-
             </div>
 
-
             <div class="metric-card">
-
                 <div class="metric-label">
                     Impacto neto estimado
                 </div>
-
                 <div class="metric-value {'green-value' if impacto <= 0 else 'red-value'}">
                     {money(impacto)}
                 </div>
-
             </div>
 
-
             <div class="metric-card">
-
                 <div class="metric-label">
                     Troqueles evaluados
                 </div>
-
                 <div class="metric-value">
                     {cantidad_simulaciones}
                 </div>
-
                 <div class="metric-sub">
                     {recomendadas} recomendados ·
                     {no_recomendadas} no recomendados
                 </div>
-
             </div>
-
         </div>
         """
     )
 
     # --------------------------------------------------------
-    # Barras financiera
+    # Comparación financiera
     # --------------------------------------------------------
 
     max_bar = max(
@@ -658,57 +637,35 @@ if view == "panel":
         </div>
 
         <div class="bar-row">
-
-            <div>
-                Actual
-            </div>
-
+            <div>Actual</div>
             <div class="bar-bg">
-
                 <div
                     class="bar-fill"
-                    style="
-                        width:{actual_pct}%;
-                        background:#d8d5cc;
-                    ">
+                    style="width:{actual_pct}%; background:#d8d5cc;">
                 </div>
-
             </div>
-
             <strong>
                 {money(fact_actual)}
             </strong>
-
         </div>
 
-
         <div class="bar-row">
-
-            <div>
-                Proyectada
-            </div>
-
+            <div>Proyectada</div>
             <div class="bar-bg">
-
                 <div
                     class="bar-fill"
-                    style="
-                        width:{proyectada_pct}%;
-                    ">
+                    style="width:{proyectada_pct}%;">
                 </div>
-
             </div>
-
             <strong>
                 {money(fact_proyectada)}
             </strong>
-
         </div>
         """
     )
 
     # --------------------------------------------------------
-    # Tabla de simulaciones recientes
+    # Evaluaciones recientes
     # --------------------------------------------------------
 
     html_block(
@@ -773,19 +730,19 @@ if view == "panel":
 
             if recomendacion:
 
-                badge_html = """
-                <span class="badge badge-ok">
-                    Recomendado
-                </span>
-                """
+                badge_html = (
+                    '<span class="badge badge-ok">'
+                    'Recomendado'
+                    '</span>'
+                )
 
             else:
 
-                badge_html = """
-                <span class="badge badge-no">
-                    No recomendado
-                </span>
-                """
+                badge_html = (
+                    '<span class="badge badge-no">'
+                    'No recomendado'
+                    '</span>'
+                )
 
             fa = float(
                 row_hist.get(
@@ -814,33 +771,19 @@ if view == "panel":
             else:
                 impacto_class = "muted"
 
-            rows_html += f"""
-            <tr>
-
-                <td>
-                    {codigo}
-                </td>
-
-                <td>
-                    {monodroga}
-                </td>
-
-                <td>
-                    {badge_html}
-                </td>
-
-                <td class="{impacto_class}">
-                    {money(impacto_fila)}
-                </td>
-
-            </tr>
-            """
+            rows_html += (
+                f"<tr>"
+                f"<td>{codigo}</td>"
+                f"<td>{monodroga}</td>"
+                f"<td>{badge_html}</td>"
+                f'<td class="{impacto_class}">{money(impacto_fila)}</td>'
+                f"</tr>"
+            )
 
     else:
 
         rows_html = """
         <tr>
-
             <td
                 colspan="4"
                 style="
@@ -851,7 +794,6 @@ if view == "panel":
             >
                 Todavía no hay simulaciones realizadas.
             </td>
-
         </tr>
         """
 
@@ -860,100 +802,84 @@ if view == "panel":
         <style>
 
         body {{
-            margin:0;
-            font-family:Arial, sans-serif;
+            margin: 0;
+            font-family: Arial, sans-serif;
         }}
 
         .reco-table {{
-            width:100%;
-            border-collapse:collapse;
-            font-size:13px;
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
         }}
 
         .reco-table th {{
-            background:#1f5b6b;
-            color:#ffffff;
-            padding:10px 13px;
-            text-align:left;
+            background: #1f5b6b;
+            color: #ffffff;
+            padding: 10px 13px;
+            text-align: left;
         }}
 
         .reco-table td {{
-            padding:10px 13px;
-            border-bottom:1px solid #eeeae2;
-            color:#333333;
+            padding: 10px 13px;
+            border-bottom: 1px solid #eeeae2;
+            color: #333333;
         }}
 
         .reco-table tr:nth-child(even) {{
-            background:#f6f3ed;
+            background: #f6f3ed;
         }}
 
         .badge {{
-            display:inline-block;
-            border-radius:999px;
-            padding:4px 18px;
-            font-size:11px;
+            display: inline-block;
+            border-radius: 999px;
+            padding: 4px 18px;
+            font-size: 11px;
         }}
 
         .badge-ok {{
-            background:#d9f1e9;
-            color:#0e6d5e;
+            background: #d9f1e9;
+            color: #0e6d5e;
         }}
 
         .badge-no {{
-            background:#f8e3db;
-            color:#924126;
+            background: #f8e3db;
+            color: #924126;
         }}
 
         .positive {{
-            color:#08765f !important;
-            font-weight:800;
-            text-align:right;
+            color: #08765f !important;
+            font-weight: 800;
+            text-align: right;
         }}
 
         .negative {{
-            color:#a33d2c !important;
-            font-weight:800;
-            text-align:right;
+            color: #a33d2c !important;
+            font-weight: 800;
+            text-align: right;
         }}
 
         .muted {{
-            color:#99948b !important;
-            font-weight:700;
-            text-align:right;
+            color: #99948b !important;
+            font-weight: 700;
+            text-align: right;
         }}
 
         </style>
 
         <table class="reco-table">
-
             <thead>
-
                 <tr>
-
-                    <th>
-                        Troquel
-                    </th>
-
-                    <th>
-                        Monodroga
-                    </th>
-
-                    <th>
-                        Recomendación
-                    </th>
-
+                    <th>Troquel</th>
+                    <th>Monodroga</th>
+                    <th>Recomendación</th>
                     <th style="text-align:right;">
                         Impacto anual
                     </th>
-
                 </tr>
-
             </thead>
-
             <tbody>
                 {rows_html}
             </tbody>
-
         </table>
         """,
         height=410,
@@ -995,7 +921,6 @@ else:
         <div class="kicker">
             Simulador de convenio
         </div>
-
         <h1 class="main-title">
             Nueva simulación — Alta de troquel
         </h1>
@@ -1003,7 +928,7 @@ else:
     )
 
     # --------------------------------------------------------
-    # Lista de troqueles vigentes
+    # Troqueles disponibles
     # --------------------------------------------------------
 
     if (
@@ -1019,7 +944,6 @@ else:
             .tolist()
         )
 
-        # Orden numérico cuando sea posible
         try:
 
             opciones = sorted(
@@ -1041,10 +965,9 @@ else:
         [1.10, 0.90]
     )
 
-
-    # ========================================================
-    # FORMULARIO
-    # ========================================================
+    # --------------------------------------------------------
+    # Formulario
+    # --------------------------------------------------------
 
     with left:
 
@@ -1073,10 +996,9 @@ else:
             type="primary",
         )
 
-
-    # ========================================================
-    # CANDIDATO
-    # ========================================================
+    # --------------------------------------------------------
+    # Candidato
+    # --------------------------------------------------------
 
     candidato = (
         svc.get_troquel(codigo)
@@ -1084,10 +1006,9 @@ else:
         else None
     )
 
-
-    # ========================================================
-    # VALIDACIÓN PREVIA
-    # ========================================================
+    # --------------------------------------------------------
+    # Validación previa
+    # --------------------------------------------------------
 
     with right:
 
@@ -1220,7 +1141,10 @@ else:
 
             fecha_texto = "-"
 
-            if fecha is not None and not pd.isna(fecha):
+            if (
+                fecha is not None
+                and not pd.isna(fecha)
+            ):
 
                 try:
 
@@ -1241,117 +1165,58 @@ else:
                         Validación previa
                     </div>
 
-
                     <div class="validation-row">
-
-                        <span>
-                            Presentación activa
-                        </span>
-
+                        <span>Presentación activa</span>
                         <strong class="{'check-ok' if activo else 'check-no'}">
                             {'Sí' if activo else 'No'}
                         </strong>
-
                     </div>
 
-
                     <div class="validation-row">
-
                         <span>
                             Precio vigente ≤ {months_window} meses
                         </span>
-
                         <strong class="{'check-ok' if elegible else 'check-no'}">
                             {'Sí' if elegible else 'No'}
                         </strong>
-
                     </div>
 
-
                     <div class="validation-row">
-
-                        <span>
-                            Fecha vigencia PVP
-                        </span>
-
-                        <strong>
-                            {fecha_texto}
-                        </strong>
-
+                        <span>Fecha vigencia PVP</span>
+                        <strong>{fecha_texto}</strong>
                     </div>
 
-
                     <div class="validation-row">
-
-                        <span>
-                            Actualmente en convenio
-                        </span>
-
+                        <span>Actualmente en convenio</span>
                         <strong class="{'check-no' if en_convenio else 'check-ok'}">
                             {'Sí' if en_convenio else 'No'}
                         </strong>
-
                     </div>
 
-
                     <div class="validation-row">
-
-                        <span>
-                            Monodroga
-                        </span>
-
-                        <strong>
-                            {monodroga}
-                        </strong>
-
+                        <span>Monodroga</span>
+                        <strong>{monodroga}</strong>
                     </div>
 
-
                     <div class="validation-row">
-
-                        <span>
-                            Presentación equivalente
-                        </span>
-
+                        <span>Presentación equivalente</span>
                         <strong>
                             {forma} · {potencia} {unidad}
                         </strong>
-
                     </div>
 
-
                     <div class="validation-row">
-
-                        <span>
-                            Laboratorio
-                        </span>
-
-                        <strong>
-                            {laboratorio}
-                        </strong>
-
+                        <span>Laboratorio</span>
+                        <strong>{laboratorio}</strong>
                     </div>
 
-
                     <div class="validation-row">
-
-                        <span>
-                            PVP candidato
-                        </span>
-
-                        <strong>
-                            {money(pvp)}
-                        </strong>
-
+                        <span>PVP candidato</span>
+                        <strong>{money(pvp)}</strong>
                     </div>
 
-
                     <div class="validation-row">
-
-                        <span>
-                            Banda actual
-                        </span>
-
+                        <span>Banda actual</span>
                         <strong>
                             {percentage(
                                 banda_actual.get(
@@ -1366,16 +1231,10 @@ else:
                             )}
                             lab.
                         </strong>
-
                     </div>
 
-
                     <div class="validation-row">
-
-                        <span>
-                            Banda con incorporación
-                        </span>
-
+                        <span>Banda con incorporación</span>
                         <strong>
                             {percentage(
                                 banda_hipotetica.get(
@@ -1390,29 +1249,17 @@ else:
                             )}
                             lab.
                         </strong>
-
                     </div>
 
-
                     <div class="validation-row">
-
-                        <span>
-                            Mejora de banda
-                        </span>
-
+                        <span>Mejora de banda</span>
                         <strong class="{'check-ok' if mejora_banda else 'check-no'}">
                             {'Sí' if mejora_banda else 'No'}
                         </strong>
-
                     </div>
 
-
                     <div class="validation-row">
-
-                        <span>
-                            Segundo PVP más alto
-                        </span>
-
+                        <span>Segundo PVP más alto</span>
                         <strong>
                             {
                                 money(segundo_pvp)
@@ -1420,20 +1267,13 @@ else:
                                 else "-"
                             }
                         </strong>
-
                     </div>
 
-
                     <div class="validation-row">
-
-                        <span>
-                            Cumple criterio de PVP
-                        </span>
-
+                        <span>Cumple criterio de PVP</span>
                         <strong class="{'check-ok' if cumple_pvp else 'check-no'}">
                             {'Sí' if cumple_pvp else 'No'}
                         </strong>
-
                     </div>
 
                 </div>
@@ -1452,9 +1292,8 @@ else:
                 "Seleccione un troquel."
             )
 
-
     # ========================================================
-    # EJECUTAR SIMULACIÓN
+    # EJECUCIÓN
     # ========================================================
 
     if ejecutar and codigo:
@@ -1467,7 +1306,7 @@ else:
             )
 
             # ------------------------------------------------
-            # Guardar
+            # Persistencia
             # ------------------------------------------------
 
             try:
@@ -1509,40 +1348,39 @@ else:
 
             if result.recomendacion:
 
-                resultado_html = """
-                <span class="result-ok">
-                    RECOMENDAR INCORPORACIÓN
-                </span>
-                """
+                resultado_html = (
+                    '<span class="result-ok">'
+                    'RECOMENDAR INCORPORACIÓN'
+                    '</span>'
+                )
 
             elif estado_resultado == "NO_ELEGIBLE":
 
-                resultado_html = """
-                <span class="result-no">
-                    PRESENTACIÓN NO ELEGIBLE
-                </span>
-                """
+                resultado_html = (
+                    '<span class="result-no">'
+                    'PRESENTACIÓN NO ELEGIBLE'
+                    '</span>'
+                )
 
             elif estado_resultado == "YA_CONVENIDO":
 
-                resultado_html = """
-                <span class="result-no">
-                    TROQUEL YA CONVENIDO
-                </span>
-                """
+                resultado_html = (
+                    '<span class="result-no">'
+                    'TROQUEL YA CONVENIDO'
+                    '</span>'
+                )
 
             else:
 
-                resultado_html = """
-                <span class="result-no">
-                    NO RECOMENDAR INCORPORACIÓN
-                </span>
-                """
+                resultado_html = (
+                    '<span class="result-no">'
+                    'NO RECOMENDAR INCORPORACIÓN'
+                    '</span>'
+                )
 
             html_block(
                 f"""
                 <div class="result-box">
-
                     <h3>
                         Resultado de simulación
                     </h3>
@@ -1552,13 +1390,9 @@ else:
                     </p>
 
                     <p>
-                        <strong>
-                            Motivo:
-                        </strong>
-
+                        <strong>Motivo:</strong>
                         {result.motivo}
                     </p>
-
                 </div>
                 """
             )
@@ -1567,54 +1401,40 @@ else:
                 f"""
                 <div
                     class="metric-grid"
-                    style="
-                        grid-template-columns:
-                        repeat(3,1fr);
-                    "
+                    style="grid-template-columns:repeat(3,1fr);"
                 >
 
                     <div class="metric-card">
-
                         <div class="metric-label">
                             Facturación actual anual
                         </div>
-
                         <div class="metric-value">
                             {money(
                                 result.facturacion_actual_anual
                             )}
                         </div>
-
                     </div>
 
-
                     <div class="metric-card">
-
                         <div class="metric-label">
                             Facturación proyectada anual
                         </div>
-
                         <div class="metric-value">
                             {money(
                                 result.facturacion_proyectada_anual
                             )}
                         </div>
-
                     </div>
 
-
                     <div class="metric-card">
-
                         <div class="metric-label">
                             Impacto anual
                         </div>
-
                         <div class="metric-value {'green-value' if impacto_resultado <= 0 else 'red-value'}">
                             {money(
                                 impacto_resultado
                             )}
                         </div>
-
                     </div>
 
                 </div>
@@ -1625,10 +1445,9 @@ else:
                 saved_msg
             )
 
-
-            # =================================================
-            # INFORMACIÓN DE CONSUMO
-            # =================================================
+            # ------------------------------------------------
+            # Información de consumo
+            # ------------------------------------------------
 
             if detalle:
 
@@ -1701,20 +1520,14 @@ else:
         html_block(
             """
             <div class="result-placeholder">
-
                 <div>
-
                     <strong>
                         El resultado de la simulación aparecerá aquí
                     </strong>
-
                     <br><br>
-
                     Se evaluará elegibilidad, banda,
                     PVP, consumo e impacto económico.
-
                 </div>
-
             </div>
             """
         )
