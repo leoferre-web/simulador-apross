@@ -1,98 +1,729 @@
+# ============================================================
+# BLOQUE 01 — Imports
+# ============================================================
+
 from __future__ import annotations
+
 import pandas as pd
+
 from core.rules import (
-    SimulationOutput, presentacion_key, band_for_group, is_eligible,
-    second_highest_pvp, consumption_block, annual_billing
+    SimulationOutput,
+    evaluate_case_a,
+    consumption_block,
+    annual_billing,
 )
 
+
+# ============================================================
+# BLOQUE 02 — Servicio principal de simulación
+# ============================================================
+
 class SimulationService:
-    def __init__(self, troqueles: pd.DataFrame, convenio: pd.DataFrame, liquidaciones: pd.DataFrame):
-        self.troqueles = troqueles.copy()
+
+    def __init__(
+        self,
+        troqueles: pd.DataFrame,
+        convenio: pd.DataFrame,
+        bandas: pd.DataFrame,
+        liquidaciones: pd.DataFrame,
+    ):
+        """
+        Servicio exclusivo para Caso A — Alta de troquel.
+
+        Fuentes:
+        - src_troqueles_alb
+        - src_convenio_oyte
+        - src_bandas_descuento
+        - src_liquidaciones
+        """
+
+        self.troqueles_raw = troqueles.copy()
         self.convenio = convenio.copy()
+        self.bandas = bandas.copy()
         self.liquidaciones = liquidaciones.copy()
-        if not self.troqueles.empty:
-            self.troqueles['presentacion_equivalente'] = self.troqueles.apply(presentacion_key, axis=1)
+
+        self.troqueles = self._build_current_alb()
+
+
+# ============================================================
+# BLOQUE 03 — Vista vigente del ALB
+# ============================================================
+
+    def _build_current_alb(self) -> pd.DataFrame:
+        """
+        Para cada tronquel:
+        1. toma la fecha de precio más reciente;
+        2. si hay empate, toma el ID más alto de Supabase.
+        """
+
+        if self.troqueles_raw.empty:
+            return self.troqueles_raw.copy()
+
+        df = self.troqueles_raw.copy()
+
+        if "tronquel" not in df.columns:
+            return df
+
+        df["tronquel"] = df["tronquel"].astype(str)
+
+        if "fecha" in df.columns:
+            df["_fecha_orden"] = pd.to_datetime(
+                df["fecha"],
+                errors="coerce",
+            )
+        else:
+            df["_fecha_orden"] = pd.NaT
+
+        if "id" in df.columns:
+            df["_id_orden"] = pd.to_numeric(
+                df["id"],
+                errors="coerce",
+            ).fillna(0)
+        else:
+            df["_id_orden"] = 0
+
+        df = df.sort_values(
+            ["tronquel", "_fecha_orden", "_id_orden"],
+            ascending=[True, False, False],
+        )
+
+        df = df.drop_duplicates(
+            subset=["tronquel"],
+            keep="first",
+        )
+
+        df = df.drop(
+            columns=["_fecha_orden", "_id_orden"],
+            errors="ignore",
+        )
+
+        return df.reset_index(drop=True)
+
+
+# ============================================================
+# BLOQUE 04 — Obtener troquel candidato
+# ============================================================
+
+    def get_troquel(self, codigo_troquel: str) -> dict | None:
+
+        if (
+            self.troqueles.empty
+            or "tronquel" not in self.troqueles.columns
+        ):
+            return None
+
+        row = self.troqueles[
+            self.troqueles["tronquel"].astype(str)
+            == str(codigo_troquel)
+        ]
+
+        if row.empty:
+            return None
+
+        return row.iloc[0].to_dict()
+
+
+# ============================================================
+# BLOQUE 05 — Troqueles en convenio
+# ============================================================
 
     def active_convenio_codes(self) -> list[str]:
-        if self.convenio.empty:
-            return []
-        df = self.convenio[self.convenio['fecha_baja_convenio'].isna()]
-        return df['codigo_troquel'].astype(str).tolist()
+        """
+        Si figura en src_convenio_oyte, se considera convenido.
+        El estado no interviene.
+        """
 
-    def current_group(self, troquel: dict) -> pd.DataFrame:
+        if (
+            self.convenio.empty
+            or "troquel" not in self.convenio.columns
+        ):
+            return []
+
+        return (
+            self.convenio["troquel"]
+            .dropna()
+            .astype(str)
+            .unique()
+            .tolist()
+        )
+
+
+# ============================================================
+# BLOQUE 06 — Verificar si está en convenio
+# ============================================================
+
+    def is_in_convenio(self, codigo_troquel: str) -> bool:
+        return str(codigo_troquel) in set(
+            self.active_convenio_codes()
+        )
+
+
+# ============================================================
+# BLOQUE 07 — Grupo de presentación equivalente
+# ============================================================
+
+    def equivalent_group(
+        self,
+        troquel: dict,
+    ) -> pd.DataFrame:
+        """
+        Presentación equivalente confirmada:
+
+        cod_monodroga
+        + formas
+        + potencia
+        + unidad_potencia
+        """
+
+        if not troquel or self.troqueles.empty:
+            return pd.DataFrame()
+
+        required = [
+            "cod_monodroga",
+            "formas",
+            "potencia",
+            "unidad_potencia",
+        ]
+
+        for col in required:
+            if col not in self.troqueles.columns:
+                return pd.DataFrame()
+
+        cod_monodroga = troquel.get("cod_monodroga")
+        forma = troquel.get("formas")
+        potencia = troquel.get("potencia")
+        unidad = troquel.get("unidad_potencia")
+
         return self.troqueles[
-            (self.troqueles['estado'] == 'activa') &
-            (self.troqueles['monodroga'] == troquel['monodroga']) &
-            (self.troqueles['presentacion_equivalente'] == presentacion_key(troquel))
+            (
+                self.troqueles["cod_monodroga"].astype(str)
+                == str(cod_monodroga)
+            )
+            &
+            (
+                self.troqueles["formas"]
+                .fillna("")
+                .astype(str)
+                == str(forma or "")
+            )
+            &
+            (
+                self.troqueles["potencia"]
+                .fillna("")
+                .astype(str)
+                == str(potencia or "")
+            )
+            &
+            (
+                self.troqueles["unidad_potencia"]
+                .fillna("")
+                .astype(str)
+                == str(unidad or "")
+            )
         ].copy()
 
-    def simulate_alta(self, codigo_troquel: str, months_window: int = 6) -> SimulationOutput:
-        row = self.troqueles[self.troqueles['codigo_troquel'].astype(str) == str(codigo_troquel)]
-        troquel = row.iloc[0].to_dict() if not row.empty else None
-        ok, msg = is_eligible(troquel, months_window)
-        if not ok:
-            return self._basic('A', codigo_troquel, False, msg, troquel)
 
-        if codigo_troquel in self.active_convenio_codes():
-            return self._basic('A', codigo_troquel, False, 'No aplica alta: el troquel ya está convenido.', troquel)
+# ============================================================
+# BLOQUE 08 — Grupo equivalente actualmente convenido
+# ============================================================
 
-        current = self.current_group(troquel)
-        current_convenio = current[current['codigo_troquel'].isin(self.active_convenio_codes())]
-        hypo = pd.concat([current_convenio, pd.DataFrame([troquel])], ignore_index=True).drop_duplicates('codigo_troquel')
-        band_current = band_for_group(current_convenio)
-        band_hypo = band_for_group(hypo)
-        improves_band = band_hypo['porcentaje_descuento'] > band_current['porcentaje_descuento']
+    def current_convenio_group(
+        self,
+        troquel: dict,
+    ) -> pd.DataFrame:
 
-        mono = self.troqueles[self.troqueles['monodroga'] == troquel['monodroga']]
-        second_pvp = second_highest_pvp(mono)
-        pvp_ok = second_pvp is not None and float(troquel['pvp']) <= second_pvp
-        recommend = improves_band and pvp_ok
-        motivo = []
-        motivo.append(f"Banda actual {band_current['porcentaje_descuento']:.0%}; banda hipotética {band_hypo['porcentaje_descuento']:.0%}.")
-        motivo.append(f"PVP candidato ${float(troquel['pvp']):,.0f}; segundo más caro ${second_pvp:,.0f}." if second_pvp is not None else 'No hay universo suficiente para segundo PVP más caro.')
-        motivo.append('Recomendar alta.' if recommend else 'No recomendar alta: no cumple todas las condiciones.')
-        current_codes = self.active_convenio_codes()
-        projected_codes = list(set(current_codes + [codigo_troquel])) if recommend else current_codes
-        return self._full('A', codigo_troquel, recommend, ' '.join(motivo), troquel, current_codes, projected_codes)
+        grupo = self.equivalent_group(troquel)
 
-    def simulate_baja(self, codigo_troquel: str, months_window: int = 6) -> SimulationOutput:
-        row = self.troqueles[self.troqueles['codigo_troquel'].astype(str) == str(codigo_troquel)]
-        troquel = row.iloc[0].to_dict() if not row.empty else None
-        ok, msg = is_eligible(troquel, months_window)
-        if not ok:
-            return self._basic('B', codigo_troquel, False, msg, troquel)
-        if codigo_troquel not in self.active_convenio_codes():
-            return self._basic('B', codigo_troquel, False, 'No aplica baja: el troquel no está convenido.', troquel)
+        if grupo.empty:
+            return grupo
 
-        group = self.current_group(troquel)
-        current_convenio = group[group['codigo_troquel'].isin(self.active_convenio_codes())]
-        hypo = current_convenio[current_convenio['codigo_troquel'] != codigo_troquel]
-        band_current = band_for_group(current_convenio)
-        band_hypo = band_for_group(hypo)
-        worsens_band = band_hypo['porcentaje_descuento'] < band_current['porcentaje_descuento']
-        mono_remaining = self.troqueles[(self.troqueles['monodroga'] == troquel['monodroga']) & (self.troqueles['codigo_troquel'] != codigo_troquel)]
-        second_pvp = second_highest_pvp(mono_remaining)
-        pvp_low = second_pvp is not None and float(troquel['pvp']) < second_pvp
-        recommend_baja = not (worsens_band and pvp_low)
-        motivo = []
-        motivo.append(f"Banda actual {band_current['porcentaje_descuento']:.0%}; banda sin troquel {band_hypo['porcentaje_descuento']:.0%}.")
-        motivo.append(f"PVP a excluir ${float(troquel['pvp']):,.0f}; segundo más caro restante ${second_pvp:,.0f}." if second_pvp is not None else 'No hay universo suficiente para segundo PVP más caro.')
-        motivo.append('Recomendar baja.' if recommend_baja else 'No recomendar baja: empeora banda y el PVP a sacar es bajo.')
-        current_codes = self.active_convenio_codes()
-        projected_codes = [c for c in current_codes if c != codigo_troquel] if recommend_baja else current_codes
-        return self._full('B', codigo_troquel, recommend_baja, ' '.join(motivo), troquel, current_codes, projected_codes)
+        convenio_codes = set(
+            self.active_convenio_codes()
+        )
 
-    def _basic(self, tipo: str, codigo: str, rec: bool, motivo: str, troquel: dict | None) -> SimulationOutput:
-        return self._full(tipo, codigo, rec, motivo, troquel or {}, self.active_convenio_codes(), self.active_convenio_codes())
+        return grupo[
+            grupo["tronquel"]
+            .astype(str)
+            .isin(convenio_codes)
+        ].copy()
 
-    def _full(self, tipo: str, codigo: str, rec: bool, motivo: str, troquel: dict, current_codes: list[str], projected_codes: list[str]) -> SimulationOutput:
-        detalle = consumption_block(self.liquidaciones, self.troqueles, troquel.get('monodroga',''), troquel.get('potencia')) if troquel else {}
+
+# ============================================================
+# BLOQUE 09 — Cantidad de laboratorios
+# ============================================================
+
+    def count_laboratories(
+        self,
+        grupo: pd.DataFrame,
+    ) -> int:
+
+        if (
+            grupo.empty
+            or "desc_laboratorio" not in grupo.columns
+        ):
+            return 0
+
+        labs = (
+            grupo["desc_laboratorio"]
+            .dropna()
+            .astype(str)
+            .str.strip()
+        )
+
+        labs = labs[labs != ""]
+
+        return int(labs.nunique())
+
+
+# ============================================================
+# BLOQUE 10 — Banda desde tabla real
+# ============================================================
+
+    def get_band(
+        self,
+        cantidad_laboratorios: int,
+    ) -> dict:
+
+        if cantidad_laboratorios <= 0:
+            return {
+                "cantidad_laboratorios": 0,
+                "porcentaje_descuento": 0.0,
+                "banda_texto": "Sin banda",
+            }
+
+        if self.bandas.empty:
+            return {
+                "cantidad_laboratorios": cantidad_laboratorios,
+                "porcentaje_descuento": 0.0,
+                "banda_texto": "",
+            }
+
+        df = self.bandas.copy()
+
+        df["cantidad_laboratorios"] = pd.to_numeric(
+            df["cantidad_laboratorios"],
+            errors="coerce",
+        )
+
+        fila = df[
+            df["cantidad_laboratorios"]
+            == cantidad_laboratorios
+        ]
+
+        # Si supera el máximo disponible,
+        # usamos la última banda definida.
+        if fila.empty:
+            max_labs = df[
+                "cantidad_laboratorios"
+            ].max()
+
+            fila = df[
+                df["cantidad_laboratorios"]
+                == max_labs
+            ]
+
+        if fila.empty:
+            return {
+                "cantidad_laboratorios": cantidad_laboratorios,
+                "porcentaje_descuento": 0.0,
+                "banda_texto": "",
+            }
+
+        r = fila.iloc[0]
+
+        return {
+            "cantidad_laboratorios": cantidad_laboratorios,
+            "porcentaje_descuento": float(
+                r.get("descuento", 0) or 0
+            ),
+            "banda_texto": str(
+                r.get("banda_texto", "") or ""
+            ),
+        }
+
+
+# ============================================================
+# BLOQUE 11 — Banda actual
+# ============================================================
+
+    def current_band(
+        self,
+        troquel: dict,
+    ) -> dict:
+
+        current_group = self.current_convenio_group(
+            troquel
+        )
+
+        cantidad = self.count_laboratories(
+            current_group
+        )
+
+        return self.get_band(cantidad)
+
+
+# ============================================================
+# BLOQUE 12 — Banda hipotética
+# ============================================================
+
+    def hypothetical_band(
+        self,
+        troquel: dict,
+    ) -> dict:
+        """
+        Solo suma un laboratorio si el laboratorio
+        candidato todavía no está presente.
+        """
+
+        current_group = self.current_convenio_group(
+            troquel
+        )
+
+        actual = self.count_laboratories(
+            current_group
+        )
+
+        laboratorio_candidato = str(
+            troquel.get(
+                "desc_laboratorio",
+                "",
+            )
+            or ""
+        ).strip()
+
+        laboratorios_actuales = set()
+
+        if (
+            not current_group.empty
+            and "desc_laboratorio"
+            in current_group.columns
+        ):
+            laboratorios_actuales = set(
+                current_group[
+                    "desc_laboratorio"
+                ]
+                .dropna()
+                .astype(str)
+                .str.strip()
+            )
+
+        if (
+            laboratorio_candidato
+            and laboratorio_candidato
+            not in laboratorios_actuales
+        ):
+            hipotetico = actual + 1
+        else:
+            hipotetico = actual
+
+        return self.get_band(
+            hipotetico
+        )
+
+
+# ============================================================
+# BLOQUE 13 — Universo de monodroga
+# ============================================================
+
+    def monodroga_universe(
+        self,
+        troquel: dict,
+    ) -> pd.DataFrame:
+        """
+        Para el segundo PVP utilizamos por ahora
+        toda la misma cod_monodroga.
+        """
+
+        if (
+            not troquel
+            or self.troqueles.empty
+            or "cod_monodroga"
+            not in self.troqueles.columns
+        ):
+            return pd.DataFrame()
+
+        cod_monodroga = troquel.get(
+            "cod_monodroga"
+        )
+
+        return self.troqueles[
+            self.troqueles[
+                "cod_monodroga"
+            ].astype(str)
+            == str(cod_monodroga)
+        ].copy()
+
+
+# ============================================================
+# BLOQUE 14 — Segundo PVP más alto
+# ============================================================
+
+    def second_highest_price(
+        self,
+        troquel: dict,
+    ) -> float | None:
+
+        universo = self.monodroga_universe(
+            troquel
+        )
+
+        if (
+            universo.empty
+            or "precio" not in universo.columns
+        ):
+            return None
+
+        valores = pd.to_numeric(
+            universo["precio"],
+            errors="coerce",
+        ).dropna()
+
+        valores = sorted(
+            valores.unique(),
+            reverse=True,
+        )
+
+        if len(valores) >= 2:
+            return float(valores[1])
+
+        if len(valores) == 1:
+            return float(valores[0])
+
+        return None
+
+
+# ============================================================
+# BLOQUE 15 — Simulación Caso A
+# ============================================================
+
+    def simulate_alta(
+        self,
+        codigo_troquel: str,
+        months_window: int = 6,
+    ) -> SimulationOutput:
+
+        # ----------------------------------------------------
+        # 1. Obtener candidato
+        # ----------------------------------------------------
+
+        troquel = self.get_troquel(
+            codigo_troquel
+        )
+
+        if not troquel:
+            return SimulationOutput(
+                tipo_caso="A",
+                codigo_troquel=str(codigo_troquel),
+                recomendacion=False,
+                motivo=(
+                    "Presentación no elegible: "
+                    "troquel inexistente en ALB."
+                ),
+                facturacion_actual_anual=0,
+                facturacion_proyectada_anual=0,
+                detalle_consumo={},
+            )
+
+        # ----------------------------------------------------
+        # 2. ¿Ya está en convenio?
+        # ----------------------------------------------------
+
+        ya_convenido = self.is_in_convenio(
+            codigo_troquel
+        )
+
+        # ----------------------------------------------------
+        # 3. Banda actual
+        # ----------------------------------------------------
+
+        banda_actual = self.current_band(
+            troquel
+        )
+
+        # ----------------------------------------------------
+        # 4. Banda hipotética
+        # ----------------------------------------------------
+
+        banda_hipotetica = (
+            self.hypothetical_band(
+                troquel
+            )
+        )
+
+        # ----------------------------------------------------
+        # 5. Segundo PVP
+        # ----------------------------------------------------
+
+        segundo_pvp = (
+            self.second_highest_price(
+                troquel
+            )
+        )
+
+        # ----------------------------------------------------
+        # 6. Regla de negocio
+        # ----------------------------------------------------
+
+        rule_result = evaluate_case_a(
+            troquel=troquel,
+            ya_en_convenio=ya_convenido,
+            banda_actual=banda_actual,
+            banda_hipotetica=banda_hipotetica,
+            segundo_pvp=segundo_pvp,
+            months_window=months_window,
+        )
+
+        # ----------------------------------------------------
+        # 7. No elegible / ya convenido
+        # ----------------------------------------------------
+
+        if not rule_result.aplica:
+
+            detalle = {
+                "estado":
+                    rule_result.estado,
+
+                "elegible":
+                    rule_result.elegible,
+
+                "ya_en_convenio":
+                    rule_result.ya_en_convenio,
+
+                "banda_actual":
+                    rule_result.banda_actual,
+
+                "banda_hipotetica":
+                    rule_result.banda_hipotetica,
+
+                "laboratorios_actuales":
+                    rule_result.laboratorios_actuales,
+
+                "laboratorios_hipoteticos":
+                    rule_result.laboratorios_hipoteticos,
+
+                "pvp_candidato":
+                    rule_result.pvp_candidato,
+
+                "segundo_pvp_mas_alto":
+                    rule_result.segundo_pvp_mas_alto,
+            }
+
+            return SimulationOutput(
+                tipo_caso="A",
+                codigo_troquel=str(codigo_troquel),
+                recomendacion=False,
+                motivo=rule_result.motivo,
+                facturacion_actual_anual=0,
+                facturacion_proyectada_anual=0,
+                detalle_consumo=detalle,
+            )
+
+        # ----------------------------------------------------
+        # 8. Consumo histórico
+        # ----------------------------------------------------
+
+        detalle_consumo = consumption_block(
+            liq_df=self.liquidaciones,
+            troqueles_df=self.troqueles,
+            cod_monodroga=troquel.get(
+                "cod_monodroga"
+            ),
+            potencia=troquel.get(
+                "potencia"
+            ),
+        )
+
+        # ----------------------------------------------------
+        # 9. Agregar detalle de reglas
+        # ----------------------------------------------------
+
+        detalle_consumo.update(
+            {
+                "estado":
+                    rule_result.estado,
+
+                "elegible":
+                    rule_result.elegible,
+
+                "ya_en_convenio":
+                    rule_result.ya_en_convenio,
+
+                "banda_actual":
+                    rule_result.banda_actual,
+
+                "banda_hipotetica":
+                    rule_result.banda_hipotetica,
+
+                "laboratorios_actuales":
+                    rule_result.laboratorios_actuales,
+
+                "laboratorios_hipoteticos":
+                    rule_result.laboratorios_hipoteticos,
+
+                "mejora_banda":
+                    rule_result.mejora_banda,
+
+                "pvp_candidato":
+                    rule_result.pvp_candidato,
+
+                "segundo_pvp_mas_alto":
+                    rule_result.segundo_pvp_mas_alto,
+
+                "cumple_pvp":
+                    rule_result.cumple_pvp,
+            }
+        )
+
+        # ----------------------------------------------------
+        # 10. Facturación actual
+        # ----------------------------------------------------
+
+        current_codes = (
+            self.active_convenio_codes()
+        )
+
+        facturacion_actual = annual_billing(
+            self.liquidaciones,
+            current_codes,
+        )
+
+        # ----------------------------------------------------
+        # 11. Escenario proyectado
+        # ----------------------------------------------------
+
+        if rule_result.recomendacion:
+            projected_codes = list(
+                set(
+                    current_codes
+                    + [str(codigo_troquel)]
+                )
+            )
+        else:
+            projected_codes = current_codes
+
+        facturacion_proyectada = annual_billing(
+            self.liquidaciones,
+            projected_codes,
+        )
+
+        # ----------------------------------------------------
+        # 12. Resultado final
+        # ----------------------------------------------------
+
         return SimulationOutput(
-            tipo_caso=tipo,
-            codigo_troquel=codigo,
-            recomendacion=bool(rec),
-            motivo=motivo,
-            facturacion_actual_anual=annual_billing(self.liquidaciones, current_codes),
-            facturacion_proyectada_anual=annual_billing(self.liquidaciones, projected_codes),
-            detalle_consumo=detalle
+            tipo_caso="A",
+            codigo_troquel=str(codigo_troquel),
+            recomendacion=bool(
+                rule_result.recomendacion
+            ),
+            motivo=rule_result.motivo,
+            facturacion_actual_anual=(
+                facturacion_actual
+            ),
+            facturacion_proyectada_anual=(
+                facturacion_proyectada
+            ),
+            detalle_consumo=(
+                detalle_consumo
+            ),
         )
