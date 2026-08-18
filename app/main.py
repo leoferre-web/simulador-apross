@@ -444,33 +444,7 @@ svc = SimulationService(
     bandas=bandas,
     liquidaciones=liquidaciones,
 )
-# DEBUG NUEVA LOGICA DE BANDAaaaaa
-_debug_troquel = svc.get_troquel("4952191")
 
-if _debug_troquel:
-
-    _debug_grupo = svc.current_convenio_group(
-        _debug_troquel
-    )
-
-    st.warning(
-        f"DEBUG BANDA 4952191 | "
-        f"cod_monodroga={_debug_troquel.get('cod_monodroga')} | "
-        f"filas conveniadas={len(_debug_grupo)} | "
-        f"laboratorios={svc.count_laboratories(_debug_grupo)}"
-    )
-
-    if not _debug_grupo.empty:
-
-        st.write(
-            sorted(
-                _debug_grupo["desc_laboratorio"]
-                .dropna()
-                .astype(str)
-                .unique()
-                .tolist()
-            )
-        )
 
 # ============================================================
 # BLOQUE 08 — Navegación
