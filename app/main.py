@@ -1336,8 +1336,516 @@ else:
                     "Ver detalle completo del cálculo"
                 ):
 
-                    st.json(
-                        detalle
+                    # ========================================
+                    # Datos base para el detalle
+                    # ========================================
+
+                    banda_actual_det = float(
+                        detalle.get(
+                            "banda_actual",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    banda_hipotetica_det = float(
+                        detalle.get(
+                            "banda_hipotetica",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    labs_actuales = int(
+                        detalle.get(
+                            "laboratorios_actuales",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    labs_hipoteticos = int(
+                        detalle.get(
+                            "laboratorios_hipoteticos",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    pvp_candidato_det = float(
+                        detalle.get(
+                            "pvp_candidato",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    segundo_pvp_det = detalle.get(
+                        "segundo_pvp_mas_alto"
+                    )
+
+                    afiliados_monodroga_det = int(
+                        detalle.get(
+                            "afiliados_monodroga",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    costo_anual_monodroga_det = float(
+                        detalle.get(
+                            "costo_anual_monodroga",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    afiliados_potencia_det = int(
+                        detalle.get(
+                            "afiliados_misma_potencia",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    costo_anual_potencia_det = float(
+                        detalle.get(
+                            "costo_anual_misma_potencia",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    promedio_cajas_det = float(
+                        detalle.get(
+                            "promedio_mensual_cajas_por_afiliado",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    tasa_uso_det = float(
+                        detalle.get(
+                            "tasa_uso_potencia",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    fact_actual_det = float(
+                        detalle.get(
+                            "facturacion_actual_monodroga_anual",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    fact_proyectada_det = float(
+                        detalle.get(
+                            "facturacion_proyectada_monodroga_anual",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    impacto_det = float(
+                        detalle.get(
+                            "impacto_anual",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    ahorro_det = float(
+                        detalle.get(
+                            "ahorro_anual",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    ahorro_pct_det = float(
+                        detalle.get(
+                            "ahorro_porcentual",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    liquidaciones_det = int(
+                        detalle.get(
+                            "cantidad_liquidaciones_afectadas",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    unidades_det = float(
+                        detalle.get(
+                            "unidades_historicas_afectadas",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    meses_det = int(
+                        detalle.get(
+                            "meses_observados",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    banda_economica_actual_det = float(
+                        detalle.get(
+                            "banda_economica_actual",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    banda_economica_proyectada_det = float(
+                        detalle.get(
+                            "banda_economica_proyectada",
+                            0,
+                        )
+                        or 0
+                    )
+
+                    consumo_producto = detalle.get(
+                        "consumo_promedio_mensual_producto",
+                        [],
+                    ) or []
+
+                    troqueles_afectados = detalle.get(
+                        "troqueles_afectados",
+                        [],
+                    ) or []
+
+                    # ========================================
+                    # Laboratorios que conforman banda actual
+                    # ========================================
+
+                    nombres_laboratorios_actuales = []
+
+                    try:
+
+                        grupo_banda_actual = (
+                            svc.current_convenio_group(
+                                candidato
+                            )
+                        )
+
+                        if (
+                            not grupo_banda_actual.empty
+                            and "desc_laboratorio"
+                            in grupo_banda_actual.columns
+                        ):
+
+                            nombres_laboratorios_actuales = sorted(
+                                grupo_banda_actual[
+                                    "desc_laboratorio"
+                                ]
+                                .dropna()
+                                .astype(str)
+                                .str.strip()
+                                .loc[
+                                    lambda s: s != ""
+                                ]
+                                .unique()
+                                .tolist()
+                            )
+
+                    except Exception:
+
+                        nombres_laboratorios_actuales = []
+
+                    laboratorio_candidato_det = str(
+                        candidato.get(
+                            "desc_laboratorio",
+                            "",
+                        )
+                        or ""
+                    ).strip()
+
+                    # ========================================
+                    # 1. Estado general
+                    # ========================================
+
+                    st.markdown("### 1. Estado general de la simulación")
+
+                    st.markdown(
+                        f"""
+**Estado del análisis:** {detalle.get("estado", "-")}  
+**Presentación elegible:** {"Sí" if detalle.get("elegible", False) else "No"}  
+**Troquel actualmente en convenio:** {"Sí" if detalle.get("ya_en_convenio", False) else "No"}  
+**Mejora de banda:** {"Sí" if detalle.get("mejora_banda", False) else "No"}  
+**Cumple criterio de PVP:** {"Sí" if detalle.get("cumple_pvp", False) else "No"}  
+                        """
+                    )
+
+                    st.markdown("---")
+
+                    # ========================================
+                    # 2. Banda actual y proyectada
+                    # ========================================
+
+                    st.markdown("### 2. Análisis de banda")
+
+                    st.markdown(
+                        f"""
+La banda se determina considerando todos los troqueles actualmente conveniados que pertenecen a la misma monodroga del producto candidato.
+
+**Cantidad de laboratorios actuales:** {labs_actuales}  
+**Banda actual:** {banda_actual_det:.0%}  
+**Laboratorio candidato:** {laboratorio_candidato_det if laboratorio_candidato_det else "-"}  
+**Cantidad de laboratorios con la incorporación:** {labs_hipoteticos}  
+**Banda con incorporación:** {banda_hipotetica_det:.0%}  
+**Resultado de la comparación:** {"La incorporación mejora la banda." if detalle.get("mejora_banda", False) else "La incorporación no mejora la banda."}
+                        """
+                    )
+
+                    st.markdown("**Laboratorios que conforman la banda actual:**")
+
+                    if nombres_laboratorios_actuales:
+
+                        for lab in nombres_laboratorios_actuales:
+
+                            st.markdown(
+                                f"- **{lab}**"
+                            )
+
+                    else:
+
+                        st.markdown(
+                            "No se pudieron identificar los nombres de los laboratorios que conforman la banda actual."
+                        )
+
+                    st.markdown("---")
+
+                    # ========================================
+                    # 3. Comparación PVP
+                    # ========================================
+
+                    st.markdown("### 3. Análisis de PVP")
+
+                    segundo_pvp_texto = (
+                        money(segundo_pvp_det)
+                        if segundo_pvp_det is not None
+                        else "-"
+                    )
+
+                    st.markdown(
+                        f"""
+Para el criterio de PVP se consideran los troqueles conveniados de la misma monodroga, misma potencia y misma forma farmacológica que el candidato.
+
+**PVP candidato:** {money(pvp_candidato_det)}  
+**Segundo PVP más alto del grupo comparable:** {segundo_pvp_texto}  
+**Resultado:** {"El PVP candidato cumple el criterio definido." if detalle.get("cumple_pvp", False) else "El PVP candidato no cumple el criterio definido."}
+                        """
+                    )
+
+                    st.markdown("---")
+
+                    # ========================================
+                    # 4. Consumo histórico
+                    # ========================================
+
+                    st.markdown("### 4. Consumo histórico de la monodroga")
+
+                    st.markdown(
+                        f"""
+**Afiliados con consumo de la monodroga:** {afiliados_monodroga_det:,}  
+**Costo anual de la monodroga:** {money(costo_anual_monodroga_det)}  
+**Afiliados con consumo de la misma potencia:** {afiliados_potencia_det:,}  
+**Costo anual de la misma potencia:** {money(costo_anual_potencia_det)}  
+**Promedio mensual de cajas por afiliado:** {promedio_cajas_det:,.2f}  
+**Tasa de uso de la potencia:** {tasa_uso_det:.1%}
+                        """
+                    )
+
+                    st.markdown("---")
+
+                    # ========================================
+                    # 5. Consumo promedio mensual por troquel
+                    # ========================================
+
+                    st.markdown("### 5. Consumo promedio mensual por troquel")
+
+                    if consumo_producto:
+
+                        for item in consumo_producto:
+
+                            codigo_item = item.get(
+                                "troquel",
+                                item.get(
+                                    "codigo_troquel",
+                                    "-"
+                                )
+                            )
+
+                            cajas_item = float(
+                                item.get(
+                                    "cajas_promedio_mensual",
+                                    0,
+                                )
+                                or 0
+                            )
+
+                            importe_item = float(
+                                item.get(
+                                    "pxq_promedio_mensual",
+                                    0,
+                                )
+                                or 0
+                            )
+
+                            st.markdown(
+                                f"""
+**Troquel {codigo_item}**  
+Cajas promedio mensuales: **{cajas_item:,.2f}**  
+Importe promedio mensual: **{money(importe_item)}**
+                                """
+                            )
+
+                    else:
+
+                        st.markdown(
+                            "No existen registros de consumo promedio mensual por troquel."
+                        )
+
+                    st.markdown("---")
+
+                    # ========================================
+                    # 6. Facturación actual
+                    # ========================================
+
+                    st.markdown("### 6. Facturación actual anual")
+
+                    st.markdown(
+                        f"""
+La facturación actual corresponde exclusivamente a los troqueles conveniados de la monodroga analizada.
+
+Se calcula a partir de las liquidaciones históricas utilizando:
+
+**Unidades × PConv Fecha Remito**
+
+Luego, el valor observado se anualiza según la cantidad de meses disponibles.
+
+**Meses observados:** {meses_det}  
+**Liquidaciones utilizadas:** {liquidaciones_det:,}  
+**Unidades históricas utilizadas:** {unidades_det:,.0f}  
+**Facturación actual anual de la monodroga:** {money(fact_actual_det)}
+                        """
+                    )
+
+                    st.markdown("---")
+
+                    # ========================================
+                    # 7. Facturación proyectada
+                    # ========================================
+
+                    st.markdown("### 7. Facturación proyectada anual")
+
+                    st.markdown(
+                        f"""
+La proyección mantiene el mismo consumo histórico de la monodroga y modifica únicamente la condición económica resultante de la nueva banda.
+
+Para cada liquidación se calcula:
+
+**Unidades × PVP Fecha Remito × (1 - banda proyectada)**
+
+**Banda económica actual:** {banda_economica_actual_det:.0%}  
+**Banda económica proyectada:** {banda_economica_proyectada_det:.0%}  
+**Facturación proyectada anual de la monodroga:** {money(fact_proyectada_det)}
+                        """
+                    )
+
+                    st.markdown("---")
+
+                    # ========================================
+                    # 8. Impacto económico
+                    # ========================================
+
+                    st.markdown("### 8. Impacto económico")
+
+                    st.markdown(
+                        f"""
+**Facturación actual anual:** {money(fact_actual_det)}  
+**Facturación proyectada anual:** {money(fact_proyectada_det)}  
+**Impacto anual:** {money(impacto_det)}  
+**Ahorro anual estimado:** {money(ahorro_det)}  
+**Ahorro porcentual estimado:** {ahorro_pct_det:.2%}
+                        """
+                    )
+
+                    st.markdown("---")
+
+                    # ========================================
+                    # 9. Troqueles afectados
+                    # ========================================
+
+                    st.markdown("### 9. Troqueles afectados por el cambio de banda")
+
+                    st.markdown(
+                        f"""
+Los siguientes troqueles pertenecen al universo económico de la monodroga considerado para la simulación.  
+**Cantidad total de troqueles afectados:** {len(troqueles_afectados)}
+                        """
+                    )
+
+                    if troqueles_afectados:
+
+                        for codigo_afectado in troqueles_afectados:
+
+                            st.markdown(
+                                f"- Troquel **{codigo_afectado}**"
+                            )
+
+                    else:
+
+                        st.markdown(
+                            "No se identificaron troqueles afectados."
+                        )
+
+                    st.markdown("---")
+
+                    # ========================================
+                    # 10. Resumen técnico completo
+                    # ========================================
+
+                    st.markdown("### 10. Resumen técnico completo")
+
+                    st.markdown(
+                        f"""
+**Estado:** {detalle.get("estado", "-")}  
+**Elegible:** {detalle.get("elegible", False)}  
+**Ya en convenio:** {detalle.get("ya_en_convenio", False)}  
+**Banda actual:** {banda_actual_det:.0%}  
+**Banda hipotética:** {banda_hipotetica_det:.0%}  
+**Laboratorios actuales:** {labs_actuales}  
+**Laboratorios hipotéticos:** {labs_hipoteticos}  
+**Mejora de banda:** {detalle.get("mejora_banda", False)}  
+**PVP candidato:** {money(pvp_candidato_det)}  
+**Segundo PVP más alto:** {segundo_pvp_texto}  
+**Cumple PVP:** {detalle.get("cumple_pvp", False)}  
+**Afiliados monodroga:** {afiliados_monodroga_det:,}  
+**Costo anual monodroga:** {money(costo_anual_monodroga_det)}  
+**Afiliados misma potencia:** {afiliados_potencia_det:,}  
+**Costo anual misma potencia:** {money(costo_anual_potencia_det)}  
+**Promedio mensual cajas por afiliado:** {promedio_cajas_det:,.2f}  
+**Tasa uso potencia:** {tasa_uso_det:.1%}  
+**Facturación actual monodroga anual:** {money(fact_actual_det)}  
+**Facturación proyectada monodroga anual:** {money(fact_proyectada_det)}  
+**Impacto anual:** {money(impacto_det)}  
+**Ahorro anual:** {money(ahorro_det)}  
+**Ahorro porcentual:** {ahorro_pct_det:.2%}  
+**Cantidad de liquidaciones afectadas:** {liquidaciones_det:,}  
+**Unidades históricas afectadas:** {unidades_det:,.0f}  
+**Meses observados:** {meses_det}  
+**Banda económica actual:** {banda_economica_actual_det:.0%}  
+**Banda económica proyectada:** {banda_economica_proyectada_det:.0%}  
+                        """
                     )
 
         except Exception as e:
