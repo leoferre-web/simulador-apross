@@ -19,17 +19,11 @@ import pandas as pd
 class SimulationOutput:
 
     tipo_caso: str
-
     codigo_troquel: str
-
     recomendacion: bool
-
     motivo: str
-
     facturacion_actual_anual: float
-
     facturacion_proyectada_anual: float
-
     detalle_consumo: dict
 
 
@@ -41,31 +35,18 @@ class SimulationOutput:
 class RuleResult:
 
     aplica: bool
-
     estado: str
-
     elegible: bool
-
     ya_en_convenio: bool
-
     recomendacion: bool
-
     motivo: str
-
     banda_actual: float
-
     banda_hipotetica: float
-
     laboratorios_actuales: int
-
     laboratorios_hipoteticos: int
-
     mejora_banda: bool
-
     pvp_candidato: float
-
     segundo_pvp_mas_alto: float | None
-
     cumple_pvp: bool
 
 
@@ -91,15 +72,12 @@ def normalize_code(value) -> str:
         return ""
 
     try:
-
         if pd.isna(value):
             return ""
-
     except Exception:
         pass
 
     try:
-
         return str(
             int(
                 float(value)
@@ -107,7 +85,6 @@ def normalize_code(value) -> str:
         )
 
     except Exception:
-
         return str(
             value
         ).strip()
@@ -440,20 +417,20 @@ def evaluate_case_a(
     # 6. Motivo
     # --------------------------------------------------------
 
-   if recomendacion:
+    if recomendacion:
 
-    motivo = (
-        "Recomendar incorporación. "
-        f"La banda mejora de "
-        f"{porcentaje_actual:.0%} a "
-        f"{porcentaje_hipotetico:.0%} "
-        f"y el PVP candidato "
-        f"(${pvp_candidato:,.2f}) "
-        f"es menor o igual al segundo PVP más alto "
-        f"entre los troqueles conveniados de la misma "
-        f"monodroga, misma potencia y misma forma farmacológica "
-        f"(${float(segundo_pvp):,.2f})."
-    )
+        motivo = (
+            "Recomendar incorporación. "
+            f"La banda mejora de "
+            f"{porcentaje_actual:.0%} a "
+            f"{porcentaje_hipotetico:.0%} "
+            f"y el PVP candidato "
+            f"(${pvp_candidato:,.2f}) "
+            f"es menor o igual al segundo PVP más alto "
+            f"entre los troqueles conveniados de la misma "
+            f"monodroga, misma potencia y misma forma farmacológica "
+            f"(${float(segundo_pvp):,.2f})."
+        )
 
     else:
 
@@ -485,6 +462,8 @@ def evaluate_case_a(
                     f"el PVP candidato "
                     f"(${pvp_candidato:,.2f}) "
                     f"supera el segundo PVP más alto "
+                    f"entre los troqueles conveniados de la misma "
+                    f"monodroga, misma potencia y misma forma farmacológica "
                     f"(${float(segundo_pvp):,.2f})"
                 )
             )
