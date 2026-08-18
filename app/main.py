@@ -416,6 +416,11 @@ try:
         liquidaciones,
     ) = load_data()
 
+    st.write("DEBUG ALB cargados:", len(troqueles))
+    st.write("DEBUG Convenio cargados:", len(convenio))
+    st.write("DEBUG Bandas cargadas:", len(bandas))
+    st.write("DEBUG Liquidaciones cargadas:", len(liquidaciones))
+
 except Exception as e:
 
     st.error(
