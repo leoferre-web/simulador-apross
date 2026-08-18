@@ -416,13 +416,7 @@ try:
         liquidaciones,
     ) = load_data()
 
-    st.warning(
-        f"ALB={len(troqueles)} | "
-        f"CONVENIO={len(convenio)} | "
-        f"BANDAS={len(bandas)} | "
-        f"LIQUIDACIONES={len(liquidaciones)}"
-    )
-
+    
 except Exception as e:
 
     st.error(
