@@ -7,148 +7,221 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date
 
-import pandas as pd
 from dateutil.relativedelta import relativedelta
+import pandas as pd
 
 
 # ============================================================
-# BLOQUE 02 — Modelos de salida
+# BLOQUE 02 — Resultado principal de simulación
 # ============================================================
 
 @dataclass
 class SimulationOutput:
+
     tipo_caso: str
+
     codigo_troquel: str
+
     recomendacion: bool
+
     motivo: str
+
     facturacion_actual_anual: float
+
     facturacion_proyectada_anual: float
+
     detalle_consumo: dict
 
 
+# ============================================================
+# BLOQUE 03 — Resultado interno de reglas
+# ============================================================
+
 @dataclass
-class AltaRuleResult:
-    """
-    Resultado interno de la regla de negocio
-    Caso A — Alta de troquel.
-    """
+class RuleResult:
 
     aplica: bool
+
     estado: str
 
-    recomendacion: bool
-    motivo: str
-
     elegible: bool
+
     ya_en_convenio: bool
 
+    recomendacion: bool
+
+    motivo: str
+
     banda_actual: float
+
     banda_hipotetica: float
 
     laboratorios_actuales: int
+
     laboratorios_hipoteticos: int
 
     mejora_banda: bool
 
     pvp_candidato: float
+
     segundo_pvp_mas_alto: float | None
+
     cumple_pvp: bool
 
 
 # ============================================================
-# BLOQUE 03 — Elegibilidad del troquel
+# BLOQUE 04 — Funciones auxiliares
+# ============================================================
+
+def normalize_code(value) -> str:
+    """
+    Normaliza códigos para evitar diferencias como:
+
+        12345
+        12345.0
+        "12345"
+        "12345.0"
+
+    Todos pasan a:
+
+        "12345"
+    """
+
+    if value is None:
+        return ""
+
+    try:
+
+        if pd.isna(value):
+            return ""
+
+    except Exception:
+        pass
+
+    try:
+
+        return str(
+            int(
+                float(value)
+            )
+        )
+
+    except Exception:
+
+        return str(
+            value
+        ).strip()
+
+
+# ============================================================
+# BLOQUE 05 — Elegibilidad del candidato
 # ============================================================
 
 def is_eligible(
-    troquel: dict | None,
+    troquel: dict,
     months_window: int = 6,
 ) -> tuple[bool, str]:
     """
-    Precondición de elegibilidad del Caso A.
+    Precondición de elegibilidad Caso A.
 
-    El troquel es elegible únicamente si:
+    ALB se utiliza para verificar:
 
-    1. Existe en ALB.
-    2. baja = 0.
-    3. La fecha de vigencia del precio
-       no supera la ventana definida.
+    1. presentación activa;
+    2. vigencia del precio dentro de la ventana configurable.
 
-    Default: 6 meses.
+    Default:
+        6 meses.
     """
 
     if not troquel:
+
         return (
             False,
-            "Presentación no elegible: troquel inexistente en ALB.",
+            "Presentación no elegible: troquel inexistente."
         )
 
     # --------------------------------------------------------
-    # Validar estado
+    # 1. Estado activo
     # --------------------------------------------------------
 
-    baja = pd.to_numeric(
-        pd.Series([troquel.get("baja")]),
-        errors="coerce",
-    ).iloc[0]
-
-    if pd.isna(baja):
-        return (
-            False,
-            "Presentación no elegible: no fue posible determinar el estado de baja.",
-        )
-
-    if int(baja) != 0:
-        return (
-            False,
-            "Presentación no elegible: la presentación se encuentra dada de baja.",
-        )
-
-    # --------------------------------------------------------
-    # Validar fecha de vigencia
-    # --------------------------------------------------------
-
-    fecha_vigencia = troquel.get("fecha")
-
-    if fecha_vigencia is None or pd.isna(fecha_vigencia):
-        return (
-            False,
-            "Presentación no elegible: no posee fecha de vigencia de precio.",
-        )
-
-    try:
-        fecha_vigencia = pd.to_datetime(
-            fecha_vigencia,
-            errors="raise",
-        ).date()
-
-    except Exception:
-        return (
-            False,
-            "Presentación no elegible: fecha de vigencia de precio inválida.",
-        )
-
-    fecha_limite = (
-        date.today()
-        - relativedelta(months=months_window)
+    baja = troquel.get(
+        "baja"
     )
 
-    if fecha_vigencia < fecha_limite:
+    try:
+
+        baja_num = int(
+            float(
+                baja
+            )
+        )
+
+    except Exception:
+
+        baja_num = None
+
+    if baja_num != 0:
+
         return (
             False,
             (
                 "Presentación no elegible: "
-                f"la vigencia del precio supera los {months_window} meses."
-            ),
+                "la presentación se encuentra dada de baja."
+            )
+        )
+
+    # --------------------------------------------------------
+    # 2. Fecha de vigencia del precio
+    # --------------------------------------------------------
+
+    fecha_precio = pd.to_datetime(
+        troquel.get(
+            "fecha"
+        ),
+        errors="coerce",
+    )
+
+    if pd.isna(
+        fecha_precio
+    ):
+
+        return (
+            False,
+            (
+                "Presentación no elegible: "
+                "no posee una fecha de vigencia de precio válida."
+            )
+        )
+
+    fecha_limite = (
+        date.today()
+        - relativedelta(
+            months=months_window
+        )
+    )
+
+    if (
+        fecha_precio.date()
+        < fecha_limite
+    ):
+
+        return (
+            False,
+            (
+                "Presentación no elegible: "
+                f"el precio tiene una vigencia mayor "
+                f"a {months_window} meses."
+            )
         )
 
     return (
         True,
-        "Presentación elegible.",
+        "Presentación elegible."
     )
 
 
 # ============================================================
-# BLOQUE 04 — Regla de negocio Caso A — Alta
+# BLOQUE 06 — Motor de reglas Caso A
 # ============================================================
 
 def evaluate_case_a(
@@ -158,187 +231,255 @@ def evaluate_case_a(
     banda_hipotetica: dict,
     segundo_pvp: float | None,
     months_window: int = 6,
-) -> AltaRuleResult:
+) -> RuleResult:
     """
-    Ejecuta la regla completa del Caso A.
+    Caso A — Alta de troquel.
 
-    Flujo:
+    Regla:
 
-    1. Validar elegibilidad.
-    2. Verificar si el troquel ya está convenido.
-    3. Evaluar mejora de banda.
-    4. Evaluar PVP candidato.
-    5. Recomendar solamente si ambas condiciones se cumplen.
+    PRECONDICIÓN
+        presentación activa
+        + precio vigente dentro de la ventana.
+
+    SI YA ESTÁ CONVENIADO
+        no aplica análisis de incorporación.
+
+    SI NO ESTÁ CONVENIADO
+
+        Condición 1:
+            banda hipotética > banda actual.
+
+        Condición 2:
+            PVP candidato <= segundo PVP más alto
+            del universo comparable definido en services.py.
+
+    Ambas deben cumplirse para recomendar.
     """
 
     # --------------------------------------------------------
-    # Datos básicos
+    # 1. Elegibilidad
     # --------------------------------------------------------
 
-    pvp_candidato = pd.to_numeric(
-        pd.Series([troquel.get("precio")]),
-        errors="coerce",
-    ).iloc[0]
+    elegible, motivo_elegibilidad = (
+        is_eligible(
+            troquel,
+            months_window,
+        )
+    )
 
-    if pd.isna(pvp_candidato):
+    porcentaje_actual = float(
+        banda_actual.get(
+            "porcentaje_descuento",
+            0,
+        )
+        or 0
+    )
+
+    porcentaje_hipotetico = float(
+        banda_hipotetica.get(
+            "porcentaje_descuento",
+            0,
+        )
+        or 0
+    )
+
+    labs_actuales = int(
+        banda_actual.get(
+            "cantidad_laboratorios",
+            0,
+        )
+        or 0
+    )
+
+    labs_hipoteticos = int(
+        banda_hipotetica.get(
+            "cantidad_laboratorios",
+            0,
+        )
+        or 0
+    )
+
+    try:
+
+        pvp_candidato = float(
+            troquel.get(
+                "precio",
+                0,
+            )
+            or 0
+        )
+
+    except Exception:
+
         pvp_candidato = 0.0
 
-    pvp_candidato = float(pvp_candidato)
-
-    banda_actual_pct = float(
-        banda_actual.get(
-            "porcentaje_descuento",
-            0,
-        )
-        or 0
-    )
-
-    banda_hipotetica_pct = float(
-        banda_hipotetica.get(
-            "porcentaje_descuento",
-            0,
-        )
-        or 0
-    )
-
-    laboratorios_actuales = int(
-        banda_actual.get(
-            "cantidad_laboratorios",
-            0,
-        )
-        or 0
-    )
-
-    laboratorios_hipoteticos = int(
-        banda_hipotetica.get(
-            "cantidad_laboratorios",
-            0,
-        )
-        or 0
-    )
-
     # --------------------------------------------------------
-    # PASO 1 — Elegibilidad
+    # No elegible
     # --------------------------------------------------------
-
-    elegible, motivo_elegibilidad = is_eligible(
-        troquel,
-        months_window,
-    )
 
     if not elegible:
-        return AltaRuleResult(
+
+        return RuleResult(
+
             aplica=False,
+
             estado="NO_ELEGIBLE",
-            recomendacion=False,
-            motivo=motivo_elegibilidad,
+
             elegible=False,
-            ya_en_convenio=False,
-            banda_actual=banda_actual_pct,
-            banda_hipotetica=banda_hipotetica_pct,
-            laboratorios_actuales=laboratorios_actuales,
-            laboratorios_hipoteticos=laboratorios_hipoteticos,
+
+            ya_en_convenio=bool(
+                ya_en_convenio
+            ),
+
+            recomendacion=False,
+
+            motivo=
+                motivo_elegibilidad,
+
+            banda_actual=
+                porcentaje_actual,
+
+            banda_hipotetica=
+                porcentaje_hipotetico,
+
+            laboratorios_actuales=
+                labs_actuales,
+
+            laboratorios_hipoteticos=
+                labs_hipoteticos,
+
             mejora_banda=False,
-            pvp_candidato=pvp_candidato,
-            segundo_pvp_mas_alto=segundo_pvp,
+
+            pvp_candidato=
+                pvp_candidato,
+
+            segundo_pvp_mas_alto=
+                segundo_pvp,
+
             cumple_pvp=False,
         )
 
     # --------------------------------------------------------
-    # PASO 2 — Ya está en convenio
+    # 2. Ya está conveniado
     # --------------------------------------------------------
 
     if ya_en_convenio:
-        return AltaRuleResult(
+
+        return RuleResult(
+
             aplica=False,
+
             estado="YA_CONVENIDO",
-            recomendacion=False,
-            motivo=(
-                "El troquel ya se encuentra incluido en el "
-                "Convenio APROSS OYTE. "
-                "No corresponde ejecutar un análisis de incorporación."
-            ),
+
             elegible=True,
+
             ya_en_convenio=True,
-            banda_actual=banda_actual_pct,
-            banda_hipotetica=banda_actual_pct,
-            laboratorios_actuales=laboratorios_actuales,
-            laboratorios_hipoteticos=laboratorios_actuales,
+
+            recomendacion=False,
+
+            motivo=(
+                "El troquel ya se encuentra en Convenio OYTE. "
+                "No aplica análisis de incorporación."
+            ),
+
+            banda_actual=
+                porcentaje_actual,
+
+            banda_hipotetica=
+                porcentaje_hipotetico,
+
+            laboratorios_actuales=
+                labs_actuales,
+
+            laboratorios_hipoteticos=
+                labs_hipoteticos,
+
             mejora_banda=False,
-            pvp_candidato=pvp_candidato,
-            segundo_pvp_mas_alto=segundo_pvp,
+
+            pvp_candidato=
+                pvp_candidato,
+
+            segundo_pvp_mas_alto=
+                segundo_pvp,
+
             cumple_pvp=False,
         )
 
     # --------------------------------------------------------
-    # PASO 3 — Condición 1: mejora de banda
+    # 3. Condición 1 — Mejora de banda
     # --------------------------------------------------------
 
     mejora_banda = (
-        banda_hipotetica_pct
-        > banda_actual_pct
+        porcentaje_hipotetico
+        >
+        porcentaje_actual
     )
 
     # --------------------------------------------------------
-    # PASO 4 — Condición 2: segundo PVP más alto
+    # 4. Condición 2 — Segundo PVP
     # --------------------------------------------------------
 
-    if segundo_pvp is None:
-        cumple_pvp = False
-
-    else:
-        cumple_pvp = (
-            pvp_candidato
-            <= float(segundo_pvp)
+    cumple_pvp = (
+        segundo_pvp is not None
+        and pvp_candidato
+        <= float(
+            segundo_pvp
         )
+    )
 
     # --------------------------------------------------------
-    # PASO 5 — Recomendación
+    # 5. Recomendación
     # --------------------------------------------------------
 
-    if mejora_banda and cumple_pvp:
+    recomendacion = (
+        mejora_banda
+        and cumple_pvp
+    )
 
-        recomendacion = True
-        estado = "RECOMENDAR_ALTA"
+    # --------------------------------------------------------
+    # 6. Motivo
+    # --------------------------------------------------------
+
+    if recomendacion:
 
         motivo = (
             "Recomendar incorporación. "
             f"La banda mejora de "
-            f"{banda_actual_pct:.0%} a "
-            f"{banda_hipotetica_pct:.0%} "
+            f"{porcentaje_actual:.0%} a "
+            f"{porcentaje_hipotetico:.0%} "
             f"y el PVP candidato "
             f"(${pvp_candidato:,.2f}) "
             f"es menor o igual al segundo PVP "
-            f"más alto de la monodroga "
+            f"más alto del grupo comparable "
             f"(${float(segundo_pvp):,.2f})."
         )
 
     else:
 
-        recomendacion = False
-        estado = "NO_RECOMENDAR"
-
-        motivos = []
+        motivos_falla = []
 
         if not mejora_banda:
-            motivos.append(
+
+            motivos_falla.append(
                 (
                     "la incorporación no mejora la banda "
-                    f"({banda_actual_pct:.0%} → "
-                    f"{banda_hipotetica_pct:.0%})"
+                    f"({porcentaje_actual:.0%} → "
+                    f"{porcentaje_hipotetico:.0%})"
                 )
             )
 
         if segundo_pvp is None:
-            motivos.append(
+
+            motivos_falla.append(
                 (
-                    "no fue posible determinar "
-                    "el segundo PVP más alto de la monodroga"
+                    "no existe un universo suficiente "
+                    "para determinar el segundo PVP más alto"
                 )
             )
 
         elif not cumple_pvp:
-            motivos.append(
+
+            motivos_falla.append(
                 (
                     f"el PVP candidato "
                     f"(${pvp_candidato:,.2f}) "
@@ -349,46 +490,68 @@ def evaluate_case_a(
 
         motivo = (
             "No recomendar incorporación: "
-            + " y ".join(motivos)
+            + " y ".join(
+                motivos_falla
+            )
             + "."
         )
 
-    return AltaRuleResult(
+    return RuleResult(
+
         aplica=True,
-        estado=estado,
-        recomendacion=recomendacion,
-        motivo=motivo,
+
+        estado=(
+            "RECOMENDADO"
+            if recomendacion
+            else "NO_RECOMENDADO"
+        ),
+
         elegible=True,
+
         ya_en_convenio=False,
-        banda_actual=banda_actual_pct,
-        banda_hipotetica=banda_hipotetica_pct,
-        laboratorios_actuales=laboratorios_actuales,
-        laboratorios_hipoteticos=laboratorios_hipoteticos,
-        mejora_banda=mejora_banda,
-        pvp_candidato=pvp_candidato,
-        segundo_pvp_mas_alto=segundo_pvp,
-        cumple_pvp=cumple_pvp,
+
+        recomendacion=bool(
+            recomendacion
+        ),
+
+        motivo=
+            motivo,
+
+        banda_actual=
+            porcentaje_actual,
+
+        banda_hipotetica=
+            porcentaje_hipotetico,
+
+        laboratorios_actuales=
+            labs_actuales,
+
+        laboratorios_hipoteticos=
+            labs_hipoteticos,
+
+        mejora_banda=bool(
+            mejora_banda
+        ),
+
+        pvp_candidato=
+            pvp_candidato,
+
+        segundo_pvp_mas_alto=(
+            float(
+                segundo_pvp
+            )
+            if segundo_pvp is not None
+            else None
+        ),
+
+        cumple_pvp=bool(
+            cumple_pvp
+        ),
     )
 
 
 # ============================================================
-# BLOQUE 05 — Bloque vacío de consumo
-# ============================================================
-
-def empty_consumption_block() -> dict:
-    return {
-        "afiliados_monodroga": 0,
-        "costo_anual_monodroga": 0.0,
-        "afiliados_misma_potencia": 0,
-        "costo_anual_misma_potencia": 0.0,
-        "promedio_mensual_cajas_por_afiliado": 0.0,
-        "tasa_uso_potencia": 0.0,
-        "consumo_promedio_mensual_producto": [],
-    }
-
-
-# ============================================================
-# BLOQUE 06 — Información de consumo
+# BLOQUE 07 — Consumo histórico de la monodroga
 # ============================================================
 
 def consumption_block(
@@ -398,266 +561,339 @@ def consumption_block(
     potencia=None,
 ) -> dict:
     """
-    Obtiene la información de consumo histórico
-    correspondiente a una monodroga.
+    Información histórica de consumo.
 
-    Precio utilizado:
-        pconv_fecha_remito
+    UNIVERSO PRINCIPAL:
+        toda la cod_monodroga.
 
-    Cantidad:
-        unidades
+    Se utiliza potencia únicamente para mostrar
+    indicadores adicionales:
 
-    Afiliado:
-        nro_afiliado
+        afiliados de la misma potencia
+        tasa de uso de la potencia
+
+    No afecta banda ni facturación.
     """
 
-    if liq_df.empty or troqueles_df.empty:
-        return empty_consumption_block()
+    resultado_vacio = {
 
-    required_troquel = {
-        "tronquel",
-        "cod_monodroga",
-        "potencia",
+        "afiliados_monodroga":
+            0,
+
+        "costo_anual_monodroga":
+            0.0,
+
+        "afiliados_misma_potencia":
+            0,
+
+        "costo_anual_misma_potencia":
+            0.0,
+
+        "promedio_mensual_cajas_por_afiliado":
+            0.0,
+
+        "tasa_uso_potencia":
+            0.0,
+
+        "consumo_promedio_mensual_producto":
+            [],
     }
 
-    required_liq = {
-        "troquel",
-        "periodo",
-        "unidades",
-        "pconv_fecha_remito",
-        "nro_afiliado",
-    }
-
-    if not required_troquel.issubset(
-        troqueles_df.columns
+    if (
+        liq_df.empty
+        or troqueles_df.empty
     ):
-        return empty_consumption_block()
 
-    if not required_liq.issubset(
-        liq_df.columns
+        return resultado_vacio
+
+    if (
+        "tronquel"
+        not in troqueles_df.columns
+        or "cod_monodroga"
+        not in troqueles_df.columns
+        or "troquel"
+        not in liq_df.columns
     ):
-        return empty_consumption_block()
+
+        return resultado_vacio
 
     # --------------------------------------------------------
-    # Buscar troqueles de la misma monodroga
+    # 1. Troqueles de la monodroga
     # --------------------------------------------------------
 
-    mono = troqueles_df[
-        troqueles_df[
+    cod_mono_num = pd.to_numeric(
+        pd.Series(
+            [cod_monodroga]
+        ),
+        errors="coerce",
+    ).iloc[0]
+
+    if pd.isna(
+        cod_mono_num
+    ):
+
+        return resultado_vacio
+
+    alb = troqueles_df.copy()
+
+    alb[
+        "_cod_monodroga_num"
+    ] = pd.to_numeric(
+        alb[
             "cod_monodroga"
-        ].astype(str)
-        == str(cod_monodroga)
+        ],
+        errors="coerce",
+    )
+
+    alb[
+        "_troquel_normalizado"
+    ] = (
+        alb[
+            "tronquel"
+        ]
+        .apply(
+            normalize_code
+        )
+    )
+
+    grupo = alb[
+        alb[
+            "_cod_monodroga_num"
+        ]
+        == cod_mono_num
     ].copy()
 
-    if mono.empty:
-        return empty_consumption_block()
+    if grupo.empty:
 
-    mono_codes = (
-        mono["tronquel"]
+        return resultado_vacio
+
+    codigos_monodroga = set(
+        grupo[
+            "_troquel_normalizado"
+        ]
         .dropna()
-        .astype(str)
-        .unique()
         .tolist()
     )
 
     # --------------------------------------------------------
-    # Liquidaciones de la monodroga
+    # 2. Liquidaciones de la monodroga
     # --------------------------------------------------------
 
-    liq = liq_df.copy()
-
-    liq["_troquel_str"] = (
-        liq["troquel"]
-        .astype(str)
+    liq = (
+        liq_df.copy()
     )
 
-    liq_mono = liq[
-        liq["_troquel_str"].isin(
-            mono_codes
+    liq[
+        "_troquel_normalizado"
+    ] = (
+        liq[
+            "troquel"
+        ]
+        .apply(
+            normalize_code
+        )
+    )
+
+    liq = liq[
+        liq[
+            "_troquel_normalizado"
+        ]
+        .isin(
+            codigos_monodroga
         )
     ].copy()
 
-    if liq_mono.empty:
-        return empty_consumption_block()
+    if liq.empty:
+
+        return resultado_vacio
 
     # --------------------------------------------------------
-    # Normalizar valores
+    # 3. Normalización
     # --------------------------------------------------------
 
-    liq_mono["unidades"] = pd.to_numeric(
-        liq_mono["unidades"],
-        errors="coerce",
-    ).fillna(0)
+    if "unidades" in liq.columns:
 
-    liq_mono[
-        "pconv_fecha_remito"
-    ] = pd.to_numeric(
-        liq_mono[
-            "pconv_fecha_remito"
-        ],
-        errors="coerce",
-    ).fillna(0)
-
-    # Importe histórico definido con negocio
-    liq_mono["importe"] = (
-        liq_mono["unidades"]
-        * liq_mono[
-            "pconv_fecha_remito"
-        ]
-    )
-
-    # --------------------------------------------------------
-    # Agregar atributos ALB
-    # --------------------------------------------------------
-
-    mono_aux = mono[
-        [
-            "tronquel",
-            "cod_monodroga",
-            "potencia",
-        ]
-    ].copy()
-
-    mono_aux["_troquel_str"] = (
-        mono_aux["tronquel"]
-        .astype(str)
-    )
-
-    joined = liq_mono.merge(
-        mono_aux[
-            [
-                "_troquel_str",
-                "cod_monodroga",
-                "potencia",
-            ]
-        ],
-        on="_troquel_str",
-        how="left",
-    )
-
-    # --------------------------------------------------------
-    # Meses disponibles
-    # --------------------------------------------------------
-
-    months = max(
-        joined["periodo"]
-        .dropna()
-        .nunique(),
-        1,
-    )
-
-    # --------------------------------------------------------
-    # Consumo promedio por producto
-    # --------------------------------------------------------
-
-    by_product = (
-        joined.groupby(
-            "_troquel_str"
-        )
-        .agg(
-            cajas_promedio_mensual=(
-                "unidades",
-                lambda s:
-                    float(s.sum())
-                    / months,
-            ),
-            pxq_promedio_mensual=(
-                "importe",
-                lambda s:
-                    float(s.sum())
-                    / months,
-            ),
-        )
-        .reset_index()
-        .rename(
-            columns={
-                "_troquel_str":
-                    "codigo_troquel"
-            }
-        )
-        .to_dict("records")
-    )
-
-    # --------------------------------------------------------
-    # Afiliados monodroga
-    # --------------------------------------------------------
-
-    afiliados_monodroga = (
-        joined["nro_afiliado"]
-        .dropna()
-        .nunique()
-    )
-
-    # --------------------------------------------------------
-    # Misma potencia
-    # --------------------------------------------------------
-
-    if potencia is not None:
-
-        misma_potencia = joined[
-            joined["potencia"]
-            .astype(str)
-            == str(potencia)
-        ].copy()
+        liq[
+            "unidades"
+        ] = pd.to_numeric(
+            liq[
+                "unidades"
+            ],
+            errors="coerce",
+        ).fillna(0)
 
     else:
-        misma_potencia = (
-            joined.iloc[0:0]
-        )
 
-    afiliados_potencia = (
-        misma_potencia[
-            "nro_afiliado"
+        liq[
+            "unidades"
+        ] = 0.0
+
+    if (
+        "pconv_fecha_remito"
+        in liq.columns
+    ):
+
+        liq[
+            "pconv_fecha_remito"
+        ] = pd.to_numeric(
+            liq[
+                "pconv_fecha_remito"
+            ],
+            errors="coerce",
+        ).fillna(0)
+
+    else:
+
+        liq[
+            "pconv_fecha_remito"
+        ] = 0.0
+
+    liq[
+        "importe"
+    ] = (
+        liq[
+            "unidades"
         ]
-        .dropna()
-        .nunique()
+        *
+        liq[
+            "pconv_fecha_remito"
+        ]
     )
 
     # --------------------------------------------------------
-    # Promedio mensual por afiliado
+    # 4. Meses observados
     # --------------------------------------------------------
 
-    promedio_cajas = (
-        float(
-            joined[
-                "unidades"
-            ].sum()
-        )
-        / months
-        / max(
-            afiliados_monodroga,
+    if "periodo" in liq.columns:
+
+        meses = max(
+            liq[
+                "periodo"
+            ]
+            .dropna()
+            .nunique(),
             1,
         )
-    )
+
+    else:
+
+        meses = 1
 
     # --------------------------------------------------------
-    # Costos anualizados
+    # 5. Afiliados
     # --------------------------------------------------------
 
-    costo_anual_monodroga = (
-        float(
-            joined[
-                "importe"
-            ].sum()
+    afiliado_col = None
+
+    for possible_col in [
+        "afiliado_id",
+        "nro_afiliado",
+        "afiliado",
+    ]:
+
+        if possible_col in liq.columns:
+
+            afiliado_col = (
+                possible_col
+            )
+
+            break
+
+    if afiliado_col:
+
+        afiliados_monodroga = (
+            liq[
+                afiliado_col
+            ]
+            .dropna()
+            .nunique()
         )
-        / months
-        * 12
-    )
 
-    costo_anual_potencia = (
-        float(
-            misma_potencia[
-                "importe"
-            ].sum()
-        )
-        / months
-        * 12
-        if not misma_potencia.empty
-        else 0.0
-    )
+    else:
+
+        afiliados_monodroga = 0
 
     # --------------------------------------------------------
-    # Tasa uso potencia
+    # 6. Incorporar potencia desde ALB
+    # --------------------------------------------------------
+
+    mismo_potencia = (
+        pd.DataFrame()
+    )
+
+    afiliados_potencia = 0
+
+    if (
+        potencia is not None
+        and "potencia"
+        in grupo.columns
+    ):
+
+        mapa_potencia = (
+            grupo[
+                [
+                    "_troquel_normalizado",
+                    "potencia",
+                ]
+            ]
+            .drop_duplicates(
+                "_troquel_normalizado"
+            )
+        )
+
+        liq = liq.merge(
+            mapa_potencia,
+            on="_troquel_normalizado",
+            how="left",
+        )
+
+        mismo_potencia = liq[
+            liq[
+                "potencia"
+            ]
+            .fillna("")
+            .astype(str)
+            ==
+            str(
+                potencia
+            )
+        ].copy()
+
+        if (
+            afiliado_col
+            and not mismo_potencia.empty
+        ):
+
+            afiliados_potencia = (
+                mismo_potencia[
+                    afiliado_col
+                ]
+                .dropna()
+                .nunique()
+            )
+
+    # --------------------------------------------------------
+    # 7. Promedio mensual de cajas por afiliado
+    # --------------------------------------------------------
+
+    if afiliados_monodroga > 0:
+
+        promedio_cajas = (
+            float(
+                liq[
+                    "unidades"
+                ].sum()
+            )
+            / meses
+            / afiliados_monodroga
+        )
+
+    else:
+
+        promedio_cajas = 0.0
+
+    # --------------------------------------------------------
+    # 8. Tasa de uso de potencia
     # --------------------------------------------------------
 
     tasa_uso = (
@@ -669,7 +905,82 @@ def consumption_block(
         else 0.0
     )
 
+    # --------------------------------------------------------
+    # 9. Consumo promedio por producto
+    # --------------------------------------------------------
+
+    consumo_producto = []
+
+    if not liq.empty:
+
+        consumo_producto = (
+            liq.groupby(
+                "_troquel_normalizado"
+            )
+            .agg(
+                cajas_promedio_mensual=(
+                    "unidades",
+                    lambda s:
+                        float(
+                            s.sum()
+                        )
+                        / meses
+                ),
+                pxq_promedio_mensual=(
+                    "importe",
+                    lambda s:
+                        float(
+                            s.sum()
+                        )
+                        / meses
+                ),
+            )
+            .reset_index()
+            .rename(
+                columns={
+                    "_troquel_normalizado":
+                        "troquel"
+                }
+            )
+            .to_dict(
+                "records"
+            )
+        )
+
+    # --------------------------------------------------------
+    # 10. Costos anualizados
+    # --------------------------------------------------------
+
+    costo_anual_monodroga = (
+        float(
+            liq[
+                "importe"
+            ].sum()
+        )
+        / meses
+        * 12
+    )
+
+    if (
+        not mismo_potencia.empty
+    ):
+
+        costo_anual_potencia = (
+            float(
+                mismo_potencia[
+                    "importe"
+                ].sum()
+            )
+            / meses
+            * 12
+        )
+
+    else:
+
+        costo_anual_potencia = 0.0
+
     return {
+
         "afiliados_monodroga":
             int(
                 afiliados_monodroga
@@ -701,12 +1012,12 @@ def consumption_block(
             ),
 
         "consumo_promedio_mensual_producto":
-            by_product,
+            consumo_producto,
     }
 
 
 # ============================================================
-# BLOQUE 07 — Facturación anual y simulación económica
+# BLOQUE 08 — Facturación anual genérica
 # ============================================================
 
 def annual_billing(
@@ -714,48 +1025,76 @@ def annual_billing(
     convenio_codes: list[str],
 ) -> float:
     """
-    Calcula la facturación anual actual de los troqueles
-    indicados utilizando el precio convenido histórico:
+    Función genérica que calcula facturación anual
+    para una lista determinada de troqueles.
+
+    Fórmula:
 
         Unidades × PConv Fecha Remito
 
-    El resultado se anualiza según la cantidad de períodos
-    disponibles en Liquidaciones.
+    Actualmente se mantiene por compatibilidad con
+    otros componentes del servicio.
     """
 
     if liq_df.empty:
         return 0.0
 
-    if (
-        "troquel" not in liq_df.columns
-        or "unidades" not in liq_df.columns
-        or "pconv_fecha_remito" not in liq_df.columns
+    required = {
+        "troquel",
+        "unidades",
+        "pconv_fecha_remito",
+    }
+
+    if not required.issubset(
+        liq_df.columns
     ):
+
         return 0.0
 
-    df = liq_df.copy()
-
-    df["_troquel_str"] = (
-        df["troquel"]
-        .astype(str)
+    codigos = set(
+        normalize_code(
+            c
+        )
+        for c in convenio_codes
+        if normalize_code(
+            c
+        ) != ""
     )
 
-    codigos = set(
-        str(c)
-        for c in convenio_codes
+    df = (
+        liq_df.copy()
+    )
+
+    df[
+        "_troquel_normalizado"
+    ] = (
+        df[
+            "troquel"
+        ]
+        .apply(
+            normalize_code
+        )
     )
 
     df = df[
-        df["_troquel_str"].isin(
+        df[
+            "_troquel_normalizado"
+        ]
+        .isin(
             codigos
         )
     ].copy()
 
     if df.empty:
+
         return 0.0
 
-    df["unidades"] = pd.to_numeric(
-        df["unidades"],
+    df[
+        "unidades"
+    ] = pd.to_numeric(
+        df[
+            "unidades"
+        ],
         errors="coerce",
     ).fillna(0)
 
@@ -768,16 +1107,24 @@ def annual_billing(
         errors="coerce",
     ).fillna(0)
 
-    df["importe_actual"] = (
-        df["unidades"]
+    df[
+        "importe_actual"
+    ] = (
+        df[
+            "unidades"
+        ]
         *
-        df["pconv_fecha_remito"]
+        df[
+            "pconv_fecha_remito"
+        ]
     )
 
     if "periodo" in df.columns:
 
         meses = max(
-            df["periodo"]
+            df[
+                "periodo"
+            ]
             .dropna()
             .nunique(),
             1,
@@ -787,7 +1134,7 @@ def annual_billing(
 
         meses = 1
 
-    facturacion_anual = (
+    return (
         float(
             df[
                 "importe_actual"
@@ -797,32 +1144,34 @@ def annual_billing(
         * 12
     )
 
-    return float(
-        facturacion_anual
-    )
-
 
 # ============================================================
-# BLOQUE 07.1 — Simulación económica por cambio de banda
+# BLOQUE 09 — Simulación económica de la monodroga
 # ============================================================
 
 def projected_billing_by_band(
     liq_df: pd.DataFrame,
     troqueles_df: pd.DataFrame,
+    convenio_codes: list[str],
     troquel_candidato: dict,
     banda_actual: float,
     banda_proyectada: float,
 ) -> dict:
     """
-    Simula el impacto económico de incorporar el troquel
-    candidato cuando dicha incorporación modifica la banda.
+    Calcula la facturación actual y proyectada
+    EXCLUSIVAMENTE de la monodroga del candidato.
 
-    PRESENTACIÓN EQUIVALENTE:
+    UNIVERSO ECONÓMICO:
 
-        cod_monodroga
-        + formas
-        + potencia
-        + unidad_potencia
+        misma cod_monodroga
+        +
+        solamente troqueles conveniados
+
+    NO intervienen:
+
+        formas
+        potencia
+        unidad_potencia
 
     ESCENARIO ACTUAL:
 
@@ -830,28 +1179,25 @@ def projected_billing_by_band(
 
     ESCENARIO PROYECTADO:
 
-        Unidades × PVP Fecha Remito
-                 × (1 - banda proyectada)
+        Unidades
+        × PVP Fecha Remito
+        × (1 - banda proyectada)
 
-    Se mantiene exactamente el mismo consumo histórico.
-
-    No se supone consumo para el troquel candidato.
-    El efecto económico proviene del cambio de banda sobre
-    el consumo histórico de la presentación equivalente.
+    El consumo histórico permanece constante.
     """
 
     resultado_vacio = {
 
-        "facturacion_actual_grupo_anual":
+        "facturacion_actual_monodroga_anual":
             0.0,
 
-        "facturacion_proyectada_grupo_anual":
+        "facturacion_proyectada_monodroga_anual":
             0.0,
 
-        "impacto_grupo_anual":
+        "impacto_anual":
             0.0,
 
-        "ahorro_grupo_anual":
+        "ahorro_anual":
             0.0,
 
         "ahorro_porcentual":
@@ -881,7 +1227,7 @@ def projected_billing_by_band(
     }
 
     # --------------------------------------------------------
-    # 1. Validaciones generales
+    # 1. Validaciones
     # --------------------------------------------------------
 
     if (
@@ -889,14 +1235,12 @@ def projected_billing_by_band(
         or troqueles_df.empty
         or not troquel_candidato
     ):
+
         return resultado_vacio
 
     required_alb = {
         "tronquel",
         "cod_monodroga",
-        "formas",
-        "potencia",
-        "unidad_potencia",
     }
 
     required_liq = {
@@ -909,102 +1253,111 @@ def projected_billing_by_band(
     if not required_alb.issubset(
         troqueles_df.columns
     ):
+
         return resultado_vacio
 
     if not required_liq.issubset(
         liq_df.columns
     ):
+
         return resultado_vacio
 
     # --------------------------------------------------------
-    # 2. Obtener presentación equivalente del candidato
+    # 2. cod_monodroga del candidato
     # --------------------------------------------------------
 
-    cod_monodroga = (
-        troquel_candidato.get(
+    cod_monodroga = pd.to_numeric(
+        pd.Series(
+            [
+                troquel_candidato.get(
+                    "cod_monodroga"
+                )
+            ]
+        ),
+        errors="coerce",
+    ).iloc[0]
+
+    if pd.isna(
+        cod_monodroga
+    ):
+
+        return resultado_vacio
+
+    # --------------------------------------------------------
+    # 3. Normalizar convenio
+    # --------------------------------------------------------
+
+    convenio_normalizado = set(
+        normalize_code(
+            codigo
+        )
+        for codigo in convenio_codes
+        if normalize_code(
+            codigo
+        ) != ""
+    )
+
+    # --------------------------------------------------------
+    # 4. Troqueles conveniados de la monodroga
+    # --------------------------------------------------------
+
+    alb = (
+        troqueles_df.copy()
+    )
+
+    alb[
+        "_cod_monodroga_num"
+    ] = pd.to_numeric(
+        alb[
             "cod_monodroga"
+        ],
+        errors="coerce",
+    )
+
+    alb[
+        "_troquel_normalizado"
+    ] = (
+        alb[
+            "tronquel"
+        ]
+        .apply(
+            normalize_code
         )
     )
 
-    forma = str(
-        troquel_candidato.get(
-            "formas",
-            "",
-        )
-        or ""
-    )
-
-    potencia = str(
-        troquel_candidato.get(
-            "potencia",
-            "",
-        )
-        or ""
-    )
-
-    unidad_potencia = str(
-        troquel_candidato.get(
-            "unidad_potencia",
-            "",
-        )
-        or ""
-    )
-
-    # --------------------------------------------------------
-    # 3. Buscar troqueles de la presentación equivalente
-    # --------------------------------------------------------
-
-    grupo = troqueles_df[
+    grupo = alb[
         (
-            troqueles_df[
-                "cod_monodroga"
-            ].astype(str)
-            == str(
-                cod_monodroga
+            alb[
+                "_cod_monodroga_num"
+            ]
+            == cod_monodroga
+        )
+        &
+        (
+            alb[
+                "_troquel_normalizado"
+            ]
+            .isin(
+                convenio_normalizado
             )
-        )
-        &
-        (
-            troqueles_df[
-                "formas"
-            ]
-            .fillna("")
-            .astype(str)
-            == forma
-        )
-        &
-        (
-            troqueles_df[
-                "potencia"
-            ]
-            .fillna("")
-            .astype(str)
-            == potencia
-        )
-        &
-        (
-            troqueles_df[
-                "unidad_potencia"
-            ]
-            .fillna("")
-            .astype(str)
-            == unidad_potencia
         )
     ].copy()
 
     if grupo.empty:
+
         return resultado_vacio
 
     codigos_grupo = (
-        grupo["tronquel"]
+        grupo[
+            "_troquel_normalizado"
+        ]
         .dropna()
-        .astype(str)
         .unique()
         .tolist()
     )
 
     # --------------------------------------------------------
-    # 4. Obtener liquidaciones históricas del grupo
+    # 5. Liquidaciones de esos troqueles
     # --------------------------------------------------------
 
     liquidaciones = (
@@ -1012,27 +1365,34 @@ def projected_billing_by_band(
     )
 
     liquidaciones[
-        "_troquel_str"
+        "_troquel_normalizado"
     ] = (
         liquidaciones[
             "troquel"
         ]
-        .astype(str)
+        .apply(
+            normalize_code
+        )
     )
 
-    liquidaciones = liquidaciones[
+    liquidaciones = (
         liquidaciones[
-            "_troquel_str"
-        ].isin(
-            codigos_grupo
-        )
-    ].copy()
+            liquidaciones[
+                "_troquel_normalizado"
+            ]
+            .isin(
+                codigos_grupo
+            )
+        ]
+        .copy()
+    )
 
     if liquidaciones.empty:
+
         return resultado_vacio
 
     # --------------------------------------------------------
-    # 5. Normalizar campos económicos
+    # 6. Normalización económica
     # --------------------------------------------------------
 
     liquidaciones[
@@ -1063,9 +1423,7 @@ def projected_billing_by_band(
     ).fillna(0)
 
     # --------------------------------------------------------
-    # 6. Escenario actual
-    #
-    # Unidades × precio convenido histórico
+    # 7. Escenario actual
     # --------------------------------------------------------
 
     liquidaciones[
@@ -1081,9 +1439,7 @@ def projected_billing_by_band(
     )
 
     # --------------------------------------------------------
-    # 7. Escenario proyectado
-    #
-    # PVP histórico × (1 - nueva banda)
+    # 8. Escenario proyectado
     # --------------------------------------------------------
 
     liquidaciones[
@@ -1115,10 +1471,13 @@ def projected_billing_by_band(
     )
 
     # --------------------------------------------------------
-    # 8. Determinar meses observados
+    # 9. Meses observados
     # --------------------------------------------------------
 
-    if "periodo" in liquidaciones.columns:
+    if (
+        "periodo"
+        in liquidaciones.columns
+    ):
 
         meses = max(
             liquidaciones[
@@ -1134,7 +1493,7 @@ def projected_billing_by_band(
         meses = 1
 
     # --------------------------------------------------------
-    # 9. Anualizar escenario actual
+    # 10. Anualización
     # --------------------------------------------------------
 
     actual_anual = (
@@ -1147,10 +1506,6 @@ def projected_billing_by_band(
         * 12
     )
 
-    # --------------------------------------------------------
-    # 10. Anualizar escenario proyectado
-    # --------------------------------------------------------
-
     proyectado_anual = (
         float(
             liquidaciones[
@@ -1162,7 +1517,7 @@ def projected_billing_by_band(
     )
 
     # --------------------------------------------------------
-    # 11. Calcular impacto económico
+    # 11. Impacto
     # --------------------------------------------------------
 
     impacto = (
@@ -1192,22 +1547,22 @@ def projected_billing_by_band(
 
     return {
 
-        "facturacion_actual_grupo_anual":
+        "facturacion_actual_monodroga_anual":
             float(
                 actual_anual
             ),
 
-        "facturacion_proyectada_grupo_anual":
+        "facturacion_proyectada_monodroga_anual":
             float(
                 proyectado_anual
             ),
 
-        "impacto_grupo_anual":
+        "impacto_anual":
             float(
                 impacto
             ),
 
-        "ahorro_grupo_anual":
+        "ahorro_anual":
             float(
                 ahorro
             ),
