@@ -65,14 +65,16 @@ div[data-testid="stAppViewContainer"] {
 }
 
 .top-bar {
-    height: 42px;
+    height: 48px;
     background: #f4f1ea;
-    border-bottom: 1px solid #e2ded4;
+    border: 1px solid #e2ded4;
+    border-radius: 10px;
     display: flex;
     align-items: center;
-    justify-content: center;
     position: relative;
+    margin-top: 30px;
     margin-bottom: 34px;
+    padding: 0 18px 0 74px;
 }
 
 .dots {
@@ -100,13 +102,30 @@ div[data-testid="stAppViewContainer"] {
     background: #52b788;
 }
 
-.url-pill {
-    background: #ffffff;
-    border: 1px solid #ddd8ce;
-    border-radius: 999px;
-    padding: 5px 80px;
-    color: #999999;
-    font-size: 11px;
+.header-brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: #2b2b2b;
+    font-size: 13px;
+    font-weight: 700;
+}
+
+.header-separator {
+    color: #b3aea5;
+    font-weight: 400;
+}
+
+.header-section {
+    color: #5f5a53;
+    font-weight: 500;
+}
+
+.header-engine {
+    margin-left: auto;
+    color: #17677a;
+    font-size: 12px;
+    font-weight: 700;
 }
 
 .kicker {
@@ -354,20 +373,25 @@ def normalize_code(value):
         return str(value)
 
 
-def render_browser_header(
-    path="simulador-convenio.aprossoyte.local",
-):
+def render_browser_header():
 
     html_block(
-        f"""
+        """
         <div class="top-bar">
             <div class="dots">
                 <span class="dot red"></span>
                 <span class="dot yellow"></span>
                 <span class="dot green"></span>
             </div>
-            <div class="url-pill">
-                {path}
+
+            <div class="header-brand">
+                <span>APROSS OYTE</span>
+                <span class="header-separator">|</span>
+                <span class="header-section">Simulador de Convenio</span>
+            </div>
+
+            <div class="header-engine">
+                Motor de Reglas
             </div>
         </div>
         """
@@ -735,9 +759,7 @@ if view == "panel":
 
 else:
 
-    render_browser_header(
-        "simulador-convenio.aprossoyte.local/nueva-simulacion"
-    )
+    render_browser_header()
 
     if st.button(
         "← Volver al panel"
