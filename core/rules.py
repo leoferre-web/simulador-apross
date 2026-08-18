@@ -440,19 +440,20 @@ def evaluate_case_a(
     # 6. Motivo
     # --------------------------------------------------------
 
-    if recomendacion:
+   if recomendacion:
 
-        motivo = (
-            "Recomendar incorporación. "
-            f"La banda mejora de "
-            f"{porcentaje_actual:.0%} a "
-            f"{porcentaje_hipotetico:.0%} "
-            f"y el PVP candidato "
-            f"(${pvp_candidato:,.2f}) "
-            f"es menor o igual al segundo PVP "
-            f"más alto del grupo comparable "
-            f"(${float(segundo_pvp):,.2f})."
-        )
+    motivo = (
+        "Recomendar incorporación. "
+        f"La banda mejora de "
+        f"{porcentaje_actual:.0%} a "
+        f"{porcentaje_hipotetico:.0%} "
+        f"y el PVP candidato "
+        f"(${pvp_candidato:,.2f}) "
+        f"es menor o igual al segundo PVP más alto "
+        f"entre los troqueles conveniados de la misma "
+        f"monodroga, misma potencia y misma forma farmacológica "
+        f"(${float(segundo_pvp):,.2f})."
+    )
 
     else:
 
