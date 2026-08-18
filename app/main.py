@@ -416,10 +416,12 @@ try:
         liquidaciones,
     ) = load_data()
 
-    st.write("DEBUG ALB cargados:", len(troqueles))
-    st.write("DEBUG Convenio cargados:", len(convenio))
-    st.write("DEBUG Bandas cargadas:", len(bandas))
-    st.write("DEBUG Liquidaciones cargadas:", len(liquidaciones))
+st.warning(
+    f"ALB={len(troqueles)} | "
+    f"CONVENIO={len(convenio)} | "
+    f"BANDAS={len(bandas)} | "
+    f"LIQUIDACIONES={len(liquidaciones)}"
+)
 
 except Exception as e:
 
