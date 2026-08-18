@@ -380,10 +380,7 @@ def render_browser_header(
 
 @st.cache_data(ttl=300)
 def load_data():
-st.write("DEBUG ALB cargados:", len(troqueles))
-st.write("DEBUG Convenio cargados:", len(convenio))
-st.write("DEBUG Bandas cargadas:", len(bandas))
-st.write("DEBUG Liquidaciones cargadas:", len(liquidaciones))
+
     repo = Repo()
 
     troqueles = repo.table_df(
